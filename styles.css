@@ -1,0 +1,463 @@
+/* CSS para emular interfaz de escritorio clasica (Windows Forms) 1:1 */
+@import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css');
+
+body {
+    background-color: #f0f0f0; /* Default Windows background */
+    font-family: Tahoma, "Segoe UI", Arial, sans-serif;
+    font-size: 11px;
+    color: #000;
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+}
+
+/* Modales e inputs reset */
+* {
+    box-sizing: border-box;
+}
+
+input[type="text"], input[type="password"], input[type="number"], select, textarea {
+    border: 1px solid #7a7a7a;
+    padding: 2px 4px;
+    font-family: inherit;
+    font-size: 11px;
+    border-radius: 0; /* Classic squared input */
+    height: 22px;
+}
+
+input[type="text"]:focus {
+    outline: none;
+    border-color: #0078d7;
+}
+
+/* Overlay Login */
+#login-overlay {
+    position: fixed;
+    inset: 0;
+    background: #f0f0f0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+.login-card {
+    background: white;
+    border: 1px solid #ccc;
+    padding: 20px;
+    width: 300px;
+    box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
+}
+.form-group {
+    margin-bottom: 10px;
+}
+.form-group label {
+    display: block;
+    margin-bottom: 2px;
+}
+.btn-primary {
+    background: linear-gradient(#f0f0f0, #e0e0e0);
+    border: 1px solid #adadad;
+    padding: 5px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 11px;
+}
+
+/* Main Form Layout */
+.win-form {
+    background: #f0f0f0; /* The form itself bg */
+    width: 960px;
+    margin: 10px auto;
+    border-top: 1px solid white;
+    border-left: 1px solid white;
+    border-right: 1px solid #a0a0a0;
+    border-bottom: 1px solid #a0a0a0;
+    padding: 4px;
+}
+
+.win-body {
+    display: flex;
+    flex-direction: column;
+}
+
+.top-section {
+    display: flex;
+    gap: 10px;
+}
+
+/* Profile / Logo Left */
+.profile-logo {
+    width: 200px; /* Adjust according to screenshot proportion */
+}
+.logo-box {
+    width: 150px;
+    height: 150px;
+    border: 1px solid #ccc;
+    background: white;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 0 auto;
+}
+
+/* Middle Panels */
+.main-form-panels {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.win-panel {
+    border: 1px solid #a0a0a0;
+    background: white;
+}
+
+.panel-title {
+    background-color: #add8e6; /* LightBlue box as in the screenshot */
+    border-bottom: 1px solid #a0a0a0;
+    text-align: center;
+    font-weight: bold;
+    font-size: 14px;
+    padding: 2px;
+}
+
+.panel-content {
+    padding: 10px 5px;
+}
+
+/* Rows and Labels */
+.f-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 4px;
+}
+.mt-1 { margin-top: 8px; }
+
+.lbl-right {
+    text-align: right;
+    padding-right: 5px;
+    flex-shrink: 0;
+}
+.lbl-top {
+    display: block;
+    margin-bottom: 2px;
+}
+
+/* Radio buttons container mimicking groupbox line */
+.equip-type-box {
+    border: 1px solid #ccc;
+    padding: 5px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-right: 10px;
+    padding-top: 10px;
+}
+
+.barcode-icon {
+    font-size: 16px;
+    margin: 0 5px;
+    align-self: center;
+}
+
+/* Buttons Right Panel */
+.right-buttons-panel {
+    width: 280px;
+    display: flex;
+    flex-direction: column;
+}
+
+.btn-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+}
+
+.w-btn {
+    background: linear-gradient(#f0f0f0, #e0e0e0);
+    border: 1px solid #adadad;
+    border-radius: 0;
+    padding: 6px 4px;
+    font-family: inherit;
+    font-size: 11px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 5px;
+}
+.w-btn:hover {
+    background: linear-gradient(#e0e0e0, #cfcfcf);
+    border-color: #0078d7;
+}
+
+/* Bottom Section */
+.bottom-section {
+    display: flex;
+    gap: 10px;
+    border-top: 1px solid #ccc;
+    padding-top: 10px;
+}
+
+.cameras {
+    width: 200px;
+    display: flex;
+    gap: 5px;
+}
+.cam-slot {
+    width: 60px;
+    height: 70px;
+    border: 1px solid #7a7a7a;
+    background: linear-gradient(#f0f0f0, #dcdcdc);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: inset 1px 1px 0 #fff;
+}
+.cam-slot:hover {
+    background: linear-gradient(#e0e0e0, #cfcfcf);
+    border-color: #0078d7;
+}
+.cam-slot .tiny-icon {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    font-size: 10px;
+    color: #444;
+}
+.cam-slot .main-cam-icon {
+    font-size: 24px;
+    color: #444;
+    margin-top: -5px;
+}
+.slot-label {
+    font-size: 9px;
+    font-weight: bold;
+    color: #000;
+    margin-top: 2px;
+}
+.media-count {
+    position: absolute;
+    bottom: 2px;
+    right: 2px;
+    background: #0078d7;
+    border-radius: 2px;
+    font-weight: bold;
+    z-index: 2;
+}
+.slot-thumb {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    z-index: 1;
+    opacity: 0.8;
+}
+
+/* Gallery Grid Styles */
+.media-item {
+    border: 1px solid #ccc;
+    background: #f9f9f9;
+    padding: 5px;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+}
+.media-thumb {
+    width: 100%;
+    height: 100px;
+    object-fit: cover;
+    border: 1px solid #ddd;
+    background: #000;
+}
+.media-actions {
+    display: flex;
+    width: 100%;
+    justify-content: space-between;
+}
+.btn-del-media {
+    color: #ef4444;
+    cursor: pointer;
+    font-size: 14px;
+}
+.btn-del-media:hover {
+    color: #b91c1c;
+}
+.media-name {
+    font-size: 9px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    width: 100%;
+    color: #666;
+}
+
+.save-area {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+}
+
+.dates-box {
+    display: flex;
+    flex-direction: column;
+}
+.d-row {
+    display: flex;
+    align-items: center;
+}
+.d-row label {
+    width: 120px;
+}
+.d-input-group {
+    display: flex;
+    width: 140px;
+}
+.d-input-group input {
+    flex: 1;
+    width: 0;
+}
+.d-input-group .btn-cal {
+    width: 22px;
+    height: 22px;
+    border: 1px solid #7a7a7a;
+    border-left: none;
+    background: #f0f0f0;
+}
+
+.save-btn-box {
+    width: 150px;
+}
+#btnGuardarOrden {
+    width: 100%;
+    height: 100%;
+    background-color: #add8e6;
+    border: 1px solid #8cb8c6;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: bold;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    box-shadow: inset 1px 1px 0 #fff;
+}
+#btnGuardarOrden:hover {
+    background-color: #9acdeb;
+}
+
+.cbo-xl {
+    width: 100%;
+    height: 30px;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+.costs-area {
+    width: 280px;
+    display: flex;
+    flex-direction: column;
+    align-items:flex-end;
+}
+.costs-area input {
+    width: 150px;
+}
+.txt-right {
+    text-align: right;
+}
+.font-red {
+    color: red;
+    font-weight: bold;
+}
+
+/* Modals */
+.win-modal {
+    position: fixed;
+    inset: 0;
+    background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+}
+.win-modal-content {
+    background: #f0f0f0;
+    border: 1px solid #000;
+    box-shadow: 2px 2px 10px rgba(0,0,0,0.5);
+    display: flex;
+    flex-direction: column;
+}
+.win-modal-header {
+    background: #0078d7; /* Win 10 classic title bar color or blue for win7 */
+    color: white;
+    padding: 5px;
+    font-size: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.win-modal-header button.win-close {
+    background: transparent;
+    border: none;
+    color: white;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+}
+.win-modal-header button.win-close:hover {
+    background: #e81123;
+}
+.win-modal-body {
+    padding: 10px;
+    background: #f0f0f0;
+}
+
+/* Tables */
+.win-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+.win-table th, .win-table td {
+    border: 1px solid #ccc;
+    padding: 3px 5px;
+    font-size: 11px;
+}
+.win-table th {
+    background: #f0f0f0;
+    font-weight: normal;
+    text-align: left;
+    border-bottom: 2px solid #a0a0a0;
+}
+.win-table tr:hover {
+    background: #0078d7;
+    color: white;
+}
+
+/* Visor Multimedia Integrado */
+.visor-btn {
+    background: transparent;
+    color: white;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    transition: transform 0.2s, color 0.2s;
+    outline: none;
+}
+.visor-btn:hover {
+    color: #0078d7;
+    transform: scale(1.2);
+}
+#visor-content img, #visor-content video {
+    max-width: 100%;
+    max-height: 100%;
+    transition: transform 0.2s ease-out;
+    object-fit: contain;
+}
