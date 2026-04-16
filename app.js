@@ -156,6 +156,11 @@ async function guardarOrden() {
             if(result.id_orden) {
                 document.getElementById('f-id-orden').value = result.id_orden;
             }
+            
+            // Auto printing
+            if (document.getElementById('chk-auto-print').checked) {
+                reimprimir();
+            }
         } else {
             alert("Error del servidor: " + (result.error || "Desconocido"));
         }
@@ -306,7 +311,11 @@ function eliminarOrden() {
 function reimprimir() {
     const id = document.getElementById('f-id-orden').value;
     if(id) {
-        window.open(`print_order.php?id=${id}`, '_blank');
+        let mode = 'large';
+        const modeEl = document.querySelector('input[name="print_mode"]:checked');
+        if (modeEl) mode = modeEl.value;
+        
+        window.open(`print_order.php?id=${id}&mode=${mode}`, '_blank');
     } else {
         alert("Debe cargar una orden para imprimir.");
     }

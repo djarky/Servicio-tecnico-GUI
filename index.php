@@ -390,11 +390,11 @@ $isSetup = ($userCount == 0);
                             <label style="font-weight: bold;">Tamaño Letra</label>
                         </div>
                         <div style="margin-top: 10px;">
-                            <label style="display: block;"><input type="radio" name="print_mode" checked> Imprimir en Media Carta</label>
-                            <label style="display: block; margin-top: 5px;"><input type="radio" name="print_mode"> Imprimir en Ticket</label>
+                            <label style="display: block;"><input type="radio" name="print_mode" value="large" checked> Imprimir en Media Carta</label>
+                            <label style="display: block; margin-top: 5px;"><input type="radio" name="print_mode" value="ticket"> Imprimir en Ticket</label>
                         </div>
                         <div style="margin-top: 10px;">
-                            <label><input type="checkbox"> Imprimir automáticamente al guardar</label>
+                            <label><input type="checkbox" id="chk-auto-print"> Imprimir automáticamente al guardar</label>
                         </div>
                         <button class="w-btn mt-auto" style="background: #add8e6; height: 35px;"><i class="fas fa-plus-circle"></i> GUARDAR</button>
                     </div>
