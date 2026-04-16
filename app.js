@@ -9,6 +9,8 @@ function initApp() {
     setupLogin();
     setupCalculations();
     setupSearch();
+    setupValidations();
+    setupReportPickers();
 }
 
 // --- Navigation & Modals ---
@@ -107,6 +109,12 @@ function nuevaOrden() {
     document.getElementById('f-resta').value = '0.00';
     document.querySelector('input[name="f-tipo"][value="Otro"]').checked = true;
     document.getElementById('f-estado').value = 'POR REVISAR';
+    
+    // Resetear fechas con Flatpickr
+    if (fpInstances['f-fecha']) fpInstances['f-fecha'].setDate(new Date());
+    if (fpInstances['f-fecha-reparado']) fpInstances['f-fecha-reparado'].clear();
+    if (fpInstances['f-fecha-entregado']) fpInstances['f-fecha-entregado'].clear();
+
     updateMediaCounts(null);
     const counts = ['count-antes', 'count-durante', 'count-despues'];
     counts.forEach(id => document.getElementById(id).innerText = '0');
@@ -141,6 +149,25 @@ async function guardarOrden() {
     
     if(!formData.nombre || !formData.documento) {
         alert("El nombre y documento son obligatorios.");
+        return;
+    }
+
+    // Validación de Teléfono antes de guardar
+    if (formData.telefono && formData.telefono.length > 0) {
+        const digits = formData.telefono.replace(/\D/g, '');
+        if (digits.length < 7 && digits.length > 0) {
+            if (!confirm("El número de teléfono parece muy corto. ¿Desea guardar de todas formas?")) return;
+        }
+    }
+
+    // Validación de Formato de Fecha
+    const datePattern = /^\d{2}\/\d{2}\/\d{4}$/;
+    if (formData.reparado && !datePattern.test(formData.reparado)) {
+        alert("El formato de la fecha de reparación no es válido (dd/mm/aaaa).");
+        return;
+    }
+    if (formData.entregado && !datePattern.test(formData.entregado)) {
+        alert("El formato de la fecha de entrega no es válido (dd/mm/aaaa).");
         return;
     }
 
@@ -182,6 +209,82 @@ function calculateBalance() {
     const p = parseFloat(document.getElementById('f-presupuesto').value) || 0;
     const a = parseFloat(document.getElementById('f-abono').value) || 0;
     document.getElementById('f-resta').value = (p - a).toFixed(2);
+}
+
+// --- Validations & Pickers ---
+let fpInstances = {};
+
+function setupValidations() {
+    // Configuración de Flatpickr para fechas
+    const dateConfig = {
+        dateFormat: "d/m/Y",
+        allowInput: true,
+        locale: "es"
+    };
+
+    fpInstances['f-fecha'] = flatpickr("#f-fecha", dateConfig);
+    fpInstances['f-fecha-reparado'] = flatpickr("#f-fecha-reparado", dateConfig);
+    fpInstances['f-fecha-entregado'] = flatpickr("#f-fecha-entregado", dateConfig);
+
+    // Validación de Teléfono (Restricción de caracteres en tiempo real)
+    const telInput = document.getElementById('f-telefono');
+    if (telInput) {
+        telInput.addEventListener('input', (e) => {
+            // Permitir: números, espacios, +, -, (, )
+            const validPattern = /[^0-9\s+\-()]/g;
+            if (validPattern.test(e.target.value)) {
+                e.target.value = e.target.value.replace(validPattern, '');
+            }
+        });
+    }
+
+    // Validación de Montos (asegurar números en presupuesto y abono)
+    ['f-presupuesto', 'f-abono'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('blur', (e) => {
+                if (isNaN(parseFloat(e.target.value))) {
+                    e.target.value = '0.00';
+                } else {
+                    e.target.value = parseFloat(e.target.value).toFixed(2);
+                }
+                calculateBalance();
+            });
+        }
+    });
+}
+
+function setupReportPickers() {
+    const dateConfig = {
+        dateFormat: "Y-m-d",
+        altFormat: "d/m/Y",
+        altInput: true,
+        allowInput: true,
+        locale: "es",
+        onChange: () => {
+             // Automatic update when date changes
+             fetchReportes();
+        }
+    };
+ 
+    // Default dates: Jan 1st of current year to Today
+    const today = new Date();
+    const startOfYear = new Date(today.getFullYear(), 0, 1);
+ 
+    fpInstances['reporte-desde'] = flatpickr("#reporte-desde", {
+        ...dateConfig,
+        defaultDate: startOfYear
+    });
+    fpInstances['reporte-hasta'] = flatpickr("#reporte-hasta", {
+        ...dateConfig,
+        defaultDate: today
+    });
+}
+
+function openPicker(id) {
+    if (fpInstances[id]) {
+        fpInstances[id].open();
+    }
 }
 
 // --- Utils ---
@@ -275,8 +378,11 @@ function loadOrder(o) {
     document.getElementById('f-presupuesto').value = o.presupuesto || '0.00';
     document.getElementById('f-abono').value = o.abono || '0.00';
     document.getElementById('f-estado').value = o.estado || 'POR REVISAR';
-    document.getElementById('f-fecha-reparado').value = o.reparado || '';
-    document.getElementById('f-fecha-entregado').value = o.entregado || '';
+    
+    // Actualizar fechas en Flatpickr
+    if (fpInstances['f-fecha']) fpInstances['f-fecha'].setDate(o.fecha || '');
+    if (fpInstances['f-fecha-reparado']) fpInstances['f-fecha-reparado'].setDate(o.reparado || '');
+    if (fpInstances['f-fecha-entregado']) fpInstances['f-fecha-entregado'].setDate(o.entregado || '');
     
     // check radio
     let radios = document.getElementsByName('f-tipo');
@@ -299,12 +405,28 @@ function loadOrder(o) {
     cerrarModal('modal-buscar-orden');
 }
 
-function eliminarOrden() {
+async function eliminarOrden() {
     const id = document.getElementById('f-id-orden').value;
-    if(id && confirm("¿Seguro que desea eliminar la orden " + id + "?")) {
-        // Here would go the fetch to delete.
-        alert("Orden eliminada (simulación)");
-        nuevaOrden();
+    if(!id) {
+        alert("Primero debe cargar una orden para eliminarla.");
+        return;
+    }
+
+    if(confirm("¿Seguro que desea eliminar la orden " + id + "? Esta acción no se puede deshacer.")) {
+        try {
+            const res = await fetch(`api.php?action=delete_order&id=${id}`);
+            const result = await res.json();
+
+            if (result.success) {
+                alert("Orden eliminada correctamente.");
+                nuevaOrden();
+            } else {
+                alert("Error al eliminar la orden: " + (result.error || "Desconocido"));
+            }
+        } catch (err) {
+            console.error(err);
+            alert("Error de comunicación con el servidor.");
+        }
     }
 }
 
@@ -498,29 +620,113 @@ function iniciarSlideshow(estado, files, thumbId) {
 }
 
 
+let chartInstances = {};
+
 async function fetchReportes() {
-    const res = await fetch(`api.php?action=get_orders`);
-    const orders = await res.json();
-    const tbody = document.querySelector('#view-reportes tbody');
-    tbody.innerHTML = '';
-    orders.forEach(o => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td>${o.id_orden}</td>
-            <td>${o.fecha}</td>
-            <td>${o.cliente_nombre}</td>
-            <td>${o.tipo_equipo}</td>
-            <td>${o.marca}</td>
-            <td>${o.modelo}</td>
-            <td>${o.falla}</td>
-            <td>${o.estado}</td>
-            <td>$${o.presupuesto}</td>
-            <td>$${o.abono}</td>
-            <td>$${o.presupuesto - o.abono}</td>
-            <td>-</td>
-            <td>-</td>
-        `;
-        tbody.appendChild(tr);
+    const desde = document.getElementById('reporte-desde').value;
+    const hasta = document.getElementById('reporte-hasta').value;
+    
+    // 1. Fetch table data (orders)
+    let url = 'api.php?action=get_orders';
+    if(desde && hasta) url += `&desde=${desde}&hasta=${hasta}`; // Note: Backend search might need adjustment for dates in get_orders too if we want full sync
+
+    try {
+        const res = await fetch(url);
+        const orders = await res.json();
+        const tbody = document.querySelector('#view-reportes tbody');
+        tbody.innerHTML = '';
+        
+        orders.forEach(o => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${o.id_orden}</td>
+                <td>${o.fecha}</td>
+                <td>${o.cliente_nombre}</td>
+                <td>${o.tipo_equipo}</td>
+                <td>${o.marca}</td>
+                <td>${o.modelo}</td>
+                <td>${o.falla}</td>
+                <td>${o.estado}</td>
+                <td>$${o.presupuesto}</td>
+                <td>$${o.abono}</td>
+                <td>$${(o.presupuesto - o.abono).toFixed(2)}</td>
+                <td>${o.reparado || '-'}</td>
+                <td>${o.entregado || '-'}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        // 2. Fetch Aggregated Chart Data
+        const resReport = await fetch(`api.php?action=get_report_data&desde=${desde}&hasta=${hasta}`);
+        const reportData = await resReport.json();
+        renderCharts(reportData);
+
+    } catch (err) {
+        console.error("Error fetching report data:", err);
+    }
+}
+
+function renderCharts(data) {
+    const commonOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                position: 'right',
+                labels: { font: { size: 10 } }
+            }
+        }
+    };
+
+    // --- Tipos de Equipo (Doughnut) ---
+    if (chartInstances['tipos']) chartInstances['tipos'].destroy();
+    chartInstances['tipos'] = new Chart(document.getElementById('chart-tipos'), {
+        type: 'doughnut',
+        data: {
+            labels: data.tipos.map(i => `${i.label} (${i.value})`),
+            datasets: [{
+                data: data.tipos.map(i => i.value),
+                backgroundColor: ['#2563eb', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#6b7280']
+            }]
+        },
+        options: commonOptions
+    });
+
+    // --- Estados de Reparación (Doughnut) ---
+    if (chartInstances['estados']) chartInstances['estados'].destroy();
+    chartInstances['estados'] = new Chart(document.getElementById('chart-estados'), {
+        type: 'doughnut',
+        data: {
+            labels: data.estados.map(i => `${i.label} (${i.value})`),
+            datasets: [{
+                data: data.estados.map(i => i.value),
+                backgroundColor: ['#f59e0b', '#3b82f6', '#10b981', '#16a34a', '#d1d5db']
+            }]
+        },
+        options: commonOptions
+    });
+
+    // --- Ingresos Mensuales (Bar) ---
+    if (chartInstances['ingresos']) chartInstances['ingresos'].destroy();
+    chartInstances['ingresos'] = new Chart(document.getElementById('chart-ingresos'), {
+        type: 'bar',
+        data: {
+            labels: data.ingresos.map(i => i.label),
+            datasets: [{
+                label: 'Ingresos Mensuales',
+                data: data.ingresos.map(i => i.value),
+                backgroundColor: '#3b82f6',
+                borderColor: '#2563eb',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            ...commonOptions,
+            plugins: { ...commonOptions.plugins, legend: { display: false } },
+            scales: {
+                y: { beginAtZero: true, ticks: { callback: value => '$' + value } }
+            }
+        }
     });
 }
 

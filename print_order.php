@@ -60,9 +60,12 @@ $mode = $_GET['mode'] ?? 'large';
 
     <div class="ticket <?= $mode === 'ticket' ? 'mode-ticket' : '' ?>">
         <div class="header">
-            <div>
-                <h1 style="margin: 0; color: #2563eb;">SERVICIO TÉCNICO</h1>
-                <p style="margin: 5px 0;">Comprobante de Orden de Servicio</p>
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <img src="imagenes/logo.png" alt="Logo" style="width: 60px; height: 60px; object-fit: cover;">
+                <div>
+                    <h1 style="margin: 0; color: #2563eb;">SERVICIO TÉCNICO</h1>
+                    <p style="margin: 5px 0;">Comprobante de Orden de Servicio</p>
+                </div>
             </div>
             <div style="text-align: right;">
                 <h2 style="margin: 0;">ORDEN #<?= $order['id_orden'] ?></h2>

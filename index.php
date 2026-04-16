@@ -34,11 +34,18 @@ $isSetup = ($userCount == 0);
     <title>Servicio Técnico - Pro</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <!-- Flatpickr -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <!-- Setup Overlay -->
     <div id="setup-overlay" style="display: <?= $isSetup ? 'flex' : 'none' ?>;">
         <div class="card login-card" style="width: 330px;">
+            <div style="text-align: center; margin-bottom: 1rem;">
+                <img src="imagenes/logo.png" alt="Logo" style="width: 80px; height: 80px; object-fit: cover; border-radius: 50%; border: 2px solid #2563eb; padding: 2px; background: white;">
+            </div>
             <h2 style="text-align: center; margin-bottom: 0.5rem; color: #2563eb;">Bienvenido</h2>
             <p style="text-align: center; font-size: 0.85rem; margin-bottom: 1.5rem; color: #555;">No hay usuarios en la base de datos.<br>Crea el Administrador primario.</p>
             <form id="setup-form">
@@ -63,6 +70,9 @@ $isSetup = ($userCount == 0);
     <!-- Login Overlay -->
     <div id="login-overlay" style="display: <?= (!$isSetup && !isset($_SESSION['user_id'])) ? 'flex' : 'none' ?>;">
         <div class="card login-card">
+            <div style="text-align: center; margin-bottom: 1rem;">
+                <img src="imagenes/logo.png" alt="Logo" style="width: 80px; height: 80px; object-fit: cover; border-radius: 50%; border: 2px solid #333; padding: 2px; background: white;">
+            </div>
             <h2 style="text-align: center; margin-bottom: 2rem;">Iniciar Sesión</h2>
             <form id="login-form">
                 <div class="form-group">
@@ -88,7 +98,7 @@ $isSetup = ($userCount == 0);
                 <!-- LEfT: Logo/User area -->
                 <div class="profile-logo">
                     <div class="logo-box">
-                        <img src="https://via.placeholder.com/150x150.png?text=User" alt="User" id="user-avatar-img" style="width: 100%; height: 100%; object-fit: cover;">
+                        <img src="imagenes/logo.png" alt="Servicio Técnico Logo" id="user-avatar-img" style="width: 100%; height: 100%; object-fit: cover;">
                     </div>
                 </div>
 
@@ -104,7 +114,10 @@ $isSetup = ($userCount == 0);
                                 <input type="text" id="f-id-orden" style="width: 60px;" readonly>
                                 <i class="fas fa-barcode barcode-icon"></i>
                                 <label class="lbl-right">FECHA:</label>
-                                <input type="text" id="f-fecha" value="<?= date('d/m/Y') ?>" style="width: 80px;">
+                                <div class="d-input-group" style="width: 100px;">
+                                    <input type="text" id="f-fecha" value="<?= date('d/m/Y') ?>" style="width: 80px;">
+                                    <button type="button" class="btn-cal" onclick="openPicker('f-fecha')"><i class="far fa-calendar-alt"></i></button>
+                                </div>
                             </div>
                             <div class="f-row mt-1">
                                 <label class="lbl-right" style="width: 130px;">DOCUMENTO:</label>
@@ -227,14 +240,14 @@ $isSetup = ($userCount == 0);
                             <label>FECHA REPARADO:</label>
                             <div class="d-input-group">
                                 <input type="text" id="f-fecha-reparado">
-                                <button class="btn-cal"><i class="far fa-calendar-alt"></i></button>
+                                <button type="button" class="btn-cal" onclick="openPicker('f-fecha-reparado')"><i class="far fa-calendar-alt"></i></button>
                             </div>
                         </div>
                         <div class="d-row mt-1">
                             <label>FECHA ENTREGADO:</label>
                             <div class="d-input-group">
                                 <input type="text" id="f-fecha-entregado">
-                                <button class="btn-cal"><i class="far fa-calendar-alt"></i></button>
+                                <button type="button" class="btn-cal" onclick="openPicker('f-fecha-entregado')"><i class="far fa-calendar-alt"></i></button>
                             </div>
                         </div>
                     </div>
@@ -438,9 +451,11 @@ $isSetup = ($userCount == 0);
         </div>
         <div style="padding: 10px;">
             <div style="display: flex; gap: 10px; margin-bottom: 10px; align-items: center;">
-                <input type="text" value="2026" style="width: 60px;">
-                <input type="text" value="4/ 2/2026" style="width: 90px;">
-                <button class="w-btn" style="background: #e0ecee; width: 100px;">FILTRAR</button>
+                <label style="font-size: 11px; font-weight: bold;">Desde:</label>
+                <input type="text" id="reporte-desde" style="width: 90px;">
+                <label style="font-size: 11px; font-weight: bold;">Hasta:</label>
+                <input type="text" id="reporte-hasta" style="width: 90px;">
+                <button class="w-btn" id="btn-filtrar-reporte" style="background: #e0ecee; width: 100px;" onclick="fetchReportes()">FILTRAR</button>
                 <button class="w-btn" onclick="document.getElementById('view-reportes').style.display = 'none'; document.getElementById('main-win-form').style.display = 'block';" style="margin-left: auto;">Cerrar</button>
             </div>
             <div style="background: #a0a0a0; height: 300px; border: 1px solid #777; overflow-y: auto;">
@@ -455,15 +470,24 @@ $isSetup = ($userCount == 0);
                 </table>
             </div>
             
-            <div style="display: flex; margin-top: 10px; gap: 10px;">
-                <div style="flex: 1; background: #fff; border: 1px solid #ccc; height: 200px; display: flex; align-items: center; justify-content: center;">
-                    [Gráfico 1]
+            <div style="display: flex; margin-top: 10px; gap: 10px; height: 260px;">
+                <div style="flex: 1; background: #fff; border: 1px solid #ccc; padding: 10px; display: flex; flex-direction: column; align-items: center;">
+                    <span style="font-weight: bold; margin-bottom: 5px; font-size: 11px;">Tipos de Equipo</span>
+                    <div style="flex: 1; width: 100%; position: relative;">
+                        <canvas id="chart-tipos"></canvas>
+                    </div>
                 </div>
-                <div style="flex: 1; background: #fff; border: 1px solid #ccc; height: 200px; display: flex; align-items: center; justify-content: center;">
-                    [Gráfico 2]
+                <div style="flex: 1; background: #fff; border: 1px solid #ccc; padding: 10px; display: flex; flex-direction: column; align-items: center;">
+                    <span style="font-weight: bold; margin-bottom: 5px; font-size: 11px;">Estado de Reparaciones</span>
+                    <div style="flex: 1; width: 100%; position: relative;">
+                        <canvas id="chart-estados"></canvas>
+                    </div>
                 </div>
-                <div style="flex: 2; background: #fff; border: 1px solid #ccc; height: 200px; display: flex; align-items: center; justify-content: center;">
-                    [Gráfico 3]
+                <div style="flex: 2; background: #fff; border: 1px solid #ccc; padding: 10px; display: flex; flex-direction: column; align-items: center;">
+                    <span style="font-weight: bold; margin-bottom: 5px; font-size: 11px;">Ingresos Mensuales</span>
+                    <div style="flex: 1; width: 100%; position: relative;">
+                        <canvas id="chart-ingresos"></canvas>
+                    </div>
                 </div>
             </div>
         </div>
@@ -493,6 +517,8 @@ $isSetup = ($userCount == 0);
          <!-- JS logic will be hooked to these elements by id directly now -->
     </form>
 
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://npmcdn.com/flatpickr/dist/l10n/es.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

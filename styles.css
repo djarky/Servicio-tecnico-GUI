@@ -461,3 +461,29 @@ input[type="text"]:focus {
     transition: transform 0.2s ease-out;
     object-fit: contain;
 }
+
+/* Flatpickr Windows Theme Overrides */
+.flatpickr-calendar {
+    border-radius: 0 !important;
+    border: 1px solid #0078d7 !important;
+    box-shadow: 2px 2px 5px rgba(0,0,0,0.2) !important;
+    font-family: inherit !important;
+}
+.flatpickr-day.selected {
+    background: #0078d7 !important;
+    border-color: #0078d7 !important;
+    border-radius: 0 !important;
+}
+.flatpickr-months .flatpickr-month {
+    background: #add8e6;
+    color: #000;
+}
+.flatpickr-current-month .flatpickr-monthDropdown-months {
+    font-weight: bold;
+}
+
+.btn-cal:active, .btn-cal.active {
+    background-color: #add8e6 !important;
+    border-color: #0078d7 !important;
+}
+

@@ -83,16 +83,26 @@ switch ($action) {
     case 'get_orders':
         checkAuth();
         $search = $_GET['q'] ?? '';
+        $desde = $_GET['desde'] ?? null;
+        $hasta = $_GET['hasta'] ?? null;
+        
         $sql = "SELECT o.*, c.nombre as cliente_nombre, c.documento as cliente_doc 
                 FROM ordenes o 
-                JOIN clientes c ON o.id_cliente = c.id_cliente";
+                JOIN clientes c ON o.id_cliente = c.id_cliente WHERE 1=1";
+        $params = [];
+        
         if ($search) {
-            $sql .= " WHERE c.nombre LIKE ? OR c.documento LIKE ? OR o.id_orden = ?";
-            $stmt = $db->prepare($sql);
-            $stmt->execute(["%$search%", "%$search%", $search]);
-        } else {
-            $stmt = $db->query($sql);
+            $sql .= " AND (c.nombre LIKE ? OR c.documento LIKE ? OR o.id_orden = ?)";
+            array_push($params, "%$search%", "%$search%", $search);
         }
+        
+        if ($desde && $hasta) {
+            $sql .= " AND o.fecha BETWEEN ? AND ?";
+            array_push($params, $desde, $hasta);
+        }
+        
+        $stmt = $db->prepare($sql);
+        $stmt->execute($params);
         echo json_encode($stmt->fetchAll());
         break;
 
@@ -227,13 +237,59 @@ switch ($action) {
         break;
 
     case 'delete_order':
-        checkAuth('admin'); // Only admins can delete
+        checkAuth('admin'); // Solo admins pueden eliminar
         $id = $_GET['id'] ?? null;
         if ($id) {
+            // 1. Eliminar archivos físicos primero
+            $targetDir = UPLOAD_DIR . "$id/";
+            
+            function deleteDir($dirPath) {
+                if (!is_dir($dirPath)) return;
+                $files = array_diff(scandir($dirPath), array('.', '..'));
+                foreach ($files as $file) {
+                    (is_dir("$dirPath/$file")) ? deleteDir("$dirPath/$file") : unlink("$dirPath/$file");
+                }
+                return rmdir($dirPath);
+            }
+            
+            deleteDir($targetDir);
+
+            // 2. Eliminar de la base de datos (ON DELETE CASCADE en orden_archivos se encargará de los registros)
             $stmt = $db->prepare("DELETE FROM ordenes WHERE id_orden = ?");
-            $stmt->execute([$id]);
-            echo json_encode(['success' => true]);
+            if ($stmt->execute([$id])) {
+                echo json_encode(['success' => true]);
+            } else {
+                http_response_code(500);
+                echo json_encode(['error' => 'No se pudo eliminar la orden de la base de datos']);
+            }
         }
+        break;
+    
+    case 'get_report_data':
+        checkAuth();
+        $desde = $_GET['desde'] ?? date('Y-01-01'); // Por defecto inicio de año
+        $hasta = $_GET['hasta'] ?? date('Y-12-31'); // Por defecto fin de año
+        
+        // 1. Tipos de Equipo
+        $stmt = $db->prepare("SELECT tipo_equipo as label, COUNT(*) as value FROM ordenes WHERE fecha BETWEEN ? AND ? GROUP BY tipo_equipo");
+        $stmt->execute([$desde, $hasta]);
+        $tipos = $stmt->fetchAll();
+        
+        // 2. Estado de Reparaciones
+        $stmt = $db->prepare("SELECT estado as label, COUNT(*) as value FROM ordenes WHERE fecha BETWEEN ? AND ? GROUP BY estado");
+        $stmt->execute([$desde, $hasta]);
+        $estados = $stmt->fetchAll();
+        
+        // 3. Ingresos Mensuales
+        $stmt = $db->prepare("SELECT DATE_FORMAT(fecha, '%Y-%m') as label, SUM(presupuesto) as value FROM ordenes WHERE fecha BETWEEN ? AND ? GROUP BY label ORDER BY label ASC");
+        $stmt->execute([$desde, $hasta]);
+        $ingresos = $stmt->fetchAll();
+        
+        echo json_encode([
+            'tipos' => $tipos,
+            'estados' => $estados,
+            'ingresos' => $ingresos
+        ]);
         break;
 
     default:
