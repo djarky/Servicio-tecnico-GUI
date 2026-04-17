@@ -482,8 +482,12 @@ input[type="text"]:focus {
     font-weight: bold;
 }
 
+
 .btn-cal:active, .btn-cal.active {
     background-color: #add8e6 !important;
     border-color: #0078d7 !important;
 }
+
+
+/* End of file */
 

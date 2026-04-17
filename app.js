@@ -11,11 +11,184 @@ function initApp() {
     setupSearch();
     setupValidations();
     setupReportPickers();
+    fillFontSelectors();
+    cargarConfig();
+}
+
+let appConfig = { moneda_simbolo: '$' };
+
+const DEFAULT_CONFIGS = {
+    large: {
+        font_head: 'Tahoma', size_head: '16',
+        font_title: 'Tahoma', size_title: '14',
+        font_body: 'Tahoma', size_body: '13',
+        font_cond: 'Tahoma', size_cond: '10'
+    },
+    ticket: {
+        font_head: 'Courier New', size_head: '14',
+        font_title: 'Courier New', size_title: '12',
+        font_body: 'Courier New', size_body: '11',
+        font_cond: 'Courier New', size_cond: '9'
+    }
+};
+
+function fillFontSelectors() {
+    const fonts = ['Tahoma', 'Arial', 'Courier New', 'Inter', 'Roboto', 'Times New Roman', 'Verdana', 'Georgia'];
+    const selects = ['cfg-font-head', 'cfg-font-title', 'cfg-font-body', 'cfg-font-cond'];
+    selects.forEach(id => {
+        const sel = document.getElementById(id);
+        if (sel) {
+            sel.innerHTML = fonts.map(f => `<option value="${f}">${f}</option>`).join('');
+        }
+    });
+}
+
+async function cargarConfig() {
+    try {
+        const res = await fetch('api.php?action=get_config');
+        appConfig = await res.json();
+        
+        // Aplicar a los inputs de moneda y auto-print
+        const monedaInput = document.getElementById('cfg-moneda');
+        if (monedaInput) monedaInput.value = appConfig.moneda_simbolo || '$';
+        
+        const chkAuto = document.getElementById('chk-auto-print');
+        if (chkAuto) chkAuto.checked = appConfig.auto_print === '1';
+
+        // Cargar modo de impresión predeterminado
+        if (appConfig.print_mode) {
+            const radio = document.getElementById('cfg-mode-' + appConfig.print_mode);
+            if (radio) radio.checked = true;
+        }
+
+        // Cargar condiciones
+        const txtCond = document.getElementById('txt-condiciones');
+        if (txtCond && appConfig.condiciones_servicio) txtCond.value = appConfig.condiciones_servicio;
+
+        // Poblar campos de fuente según el modo seleccionado actualmente en el modal
+        updateFontUIByMode();
+        
+        calculateBalance();
+    } catch (err) {
+        console.error("Error cargando config:", err);
+    }
+}
+
+function switchConfigMode() {
+    // 1. Guardar los valores actuales de la UI en el objeto appConfig (en memoria)
+    // para no perder los cambios al alternar entre modos antes de pulsar GUARDAR.
+    const oldMode = document.querySelector('input[name="print_mode_cfg"]:not(:checked)').value;
+    const fields = ['font_head', 'size_head', 'font_title', 'size_title', 'font_body', 'size_body', 'font_cond', 'size_cond'];
+    
+    // Nota: Esta lógica es un poco compleja porque switchConfigMode se dispara DESPUÉS de que el radio cambie.
+    // Así que necesitamos saber cuál era el modo anterior. 
+    // Por simplicidad, vamos a guardar SIEMPRE lo que haya en la UI en el modo que NO está seleccionado ahora? No.
+    // Hagamos que el evento onchange pase el modo anterior o simplemente guardemos el estado antes de cambiar.
+}
+
+// Refactorizamos para que sea más robusto
+let lastSelectedMode = 'large';
+
+function updateFontUIByMode() {
+    const mode = document.querySelector('input[name="print_mode_cfg"]:checked').value;
+    const fields = ['font_head', 'size_head', 'font_title', 'size_title', 'font_body', 'size_body', 'font_cond', 'size_cond'];
+    
+    fields.forEach(f => {
+        const key = `${mode}_${f}`;
+        const inputId = 'cfg-' + f.replace('_', '-');
+        const input = document.getElementById(inputId);
+        if (input) {
+            input.value = appConfig[key] || DEFAULT_CONFIGS[mode][f];
+        }
+    });
+    lastSelectedMode = mode;
+}
+
+function switchConfigMode() {
+    // Guardar lo que había antes de cambiar
+    const fields = ['font_head', 'size_head', 'font_title', 'size_title', 'font_body', 'size_body', 'font_cond', 'size_cond'];
+    fields.forEach(f => {
+        const key = `${lastSelectedMode}_${f}`;
+        const inputId = 'cfg-' + f.replace('_', '-');
+        const input = document.getElementById(inputId);
+        if (input) {
+            appConfig[key] = input.value;
+        }
+    });
+
+    // Cargar lo del nuevo modo
+    updateFontUIByMode();
+}
+
+async function guardarConfig() {
+    const mode = document.querySelector('input[name="print_mode_cfg"]:checked').value;
+    
+    // 1. Sincronizar UI actual con appConfig antes de enviar
+    appConfig.moneda_simbolo = document.getElementById('cfg-moneda').value;
+    appConfig.auto_print = document.getElementById('chk-auto-print').checked ? '1' : '0';
+    appConfig.print_mode = mode;
+
+    const fields = ['font_head', 'size_head', 'font_title', 'size_title', 'font_body', 'size_body', 'font_cond', 'size_cond'];
+    fields.forEach(f => {
+        const key = `${mode}_${f}`;
+        const inputId = 'cfg-' + f.replace('_', '-');
+        appConfig[key] = document.getElementById(inputId).value;
+    });
+    
+    try {
+        const res = await fetch('api.php?action=save_config', {
+            method: 'POST',
+            body: JSON.stringify(appConfig)
+        });
+        const result = await res.json();
+        if (result.success) {
+            alert("Configuración global guardada correctamente.");
+            cerrarModal('modal-config');
+            calculateBalance();
+        }
+    } catch (err) {
+        console.error("Error guardando config:", err);
+    }
+}
+
+async function guardarCondiciones() {
+    const text = document.getElementById('txt-condiciones').value;
+    const data = { condiciones_servicio: text };
+    
+    try {
+        const res = await fetch('api.php?action=save_config', {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
+        const result = await res.json();
+        if (result.success) {
+            alert("Condiciones guardadas correctamente");
+            appConfig.condiciones_servicio = text;
+            cerrarModal('modal-condiciones');
+        }
+    } catch (err) {
+        console.error("Error guardando condiciones:", err);
+    }
+}
+
+function borrarCondiciones() {
+    if (confirm("¿Seguro que desea borrar todas las condiciones?")) {
+        document.getElementById('txt-condiciones').value = '';
+    }
+}
+
+function formatCurrency(amount) {
+    const sym = appConfig.moneda_simbolo || '$';
+    const val = parseFloat(amount) || 0;
+    return `${sym}${val.toFixed(2)}`;
 }
 
 // --- Navigation & Modals ---
 function mostrarModal(id) {
     document.getElementById(id).style.display = 'flex';
+    if (id === 'modal-clientes') {
+        searchCustomers();
+    }
 }
 
 function cerrarModal(id) {
@@ -208,7 +381,11 @@ function setupCalculations() {
 function calculateBalance() {
     const p = parseFloat(document.getElementById('f-presupuesto').value) || 0;
     const a = parseFloat(document.getElementById('f-abono').value) || 0;
-    document.getElementById('f-resta').value = (p - a).toFixed(2);
+    const resta = p - a;
+    document.getElementById('f-resta').value = resta.toFixed(2);
+    
+    // Actualizar labels o placeholders si los hubiera. 
+    // Por ahora el sistema usa inputs, pero podemos añadir el símbolo visualmente fuera si se desea.
 }
 
 // --- Validations & Pickers ---
@@ -317,6 +494,13 @@ function setupSearch() {
             }
         });
     });
+
+    const inputClientes = document.getElementById('filtro-clientes');
+    if (inputClientes) {
+        inputClientes.addEventListener('input', debounce(() => {
+            searchCustomers();
+        }, 300));
+    }
 }
 
 async function searchOrders() {
@@ -359,6 +543,38 @@ async function searchOrders() {
     } catch (err) {
         console.error(err);
     }
+}
+
+async function searchCustomers() {
+    const txt = document.getElementById('filtro-clientes').value;
+    try {
+        const res = await fetch(`api.php?action=get_customers&q=${txt}`);
+        const customers = await res.json();
+        const tbody = document.getElementById('lista-clientes-body');
+        tbody.innerHTML = '';
+        
+        customers.forEach(c => {
+            const tr = document.createElement('tr');
+            tr.style.cursor = 'pointer';
+            tr.onclick = () => loadClient(c);
+            tr.innerHTML = `
+                <td>${c.nombre}</td>
+                <td>${c.documento}</td>
+                <td>${c.telefono}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+function loadClient(c) {
+    document.getElementById('f-documento').value = c.documento || '';
+    document.getElementById('f-nombre').value = c.nombre || '';
+    document.getElementById('f-telefono').value = c.telefono || '';
+    document.getElementById('f-direccion').value = c.direccion || '';
+    cerrarModal('modal-clientes');
 }
 
 function loadOrder(o) {
@@ -433,10 +649,7 @@ async function eliminarOrden() {
 function reimprimir() {
     const id = document.getElementById('f-id-orden').value;
     if(id) {
-        let mode = 'large';
-        const modeEl = document.querySelector('input[name="print_mode"]:checked');
-        if (modeEl) mode = modeEl.value;
-        
+        let mode = appConfig.print_mode || 'large';
         window.open(`print_order.php?id=${id}&mode=${mode}`, '_blank');
     } else {
         alert("Debe cargar una orden para imprimir.");
@@ -647,9 +860,9 @@ async function fetchReportes() {
                 <td>${o.modelo}</td>
                 <td>${o.falla}</td>
                 <td>${o.estado}</td>
-                <td>$${o.presupuesto}</td>
-                <td>$${o.abono}</td>
-                <td>$${(o.presupuesto - o.abono).toFixed(2)}</td>
+                <td>${formatCurrency(o.presupuesto)}</td>
+                <td>${formatCurrency(o.abono)}</td>
+                <td>${formatCurrency(o.presupuesto - o.abono)}</td>
                 <td>${o.reparado || '-'}</td>
                 <td>${o.entregado || '-'}</td>
             `;
@@ -724,7 +937,7 @@ function renderCharts(data) {
             ...commonOptions,
             plugins: { ...commonOptions.plugins, legend: { display: false } },
             scales: {
-                y: { beginAtZero: true, ticks: { callback: value => '$' + value } }
+                y: { beginAtZero: true, ticks: { callback: value => (appConfig.moneda_simbolo || '$') + value } }
             }
         }
     });

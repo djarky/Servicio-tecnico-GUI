@@ -106,6 +106,21 @@ switch ($action) {
         echo json_encode($stmt->fetchAll());
         break;
 
+    case 'get_customers':
+        checkAuth();
+        $search = $_GET['q'] ?? '';
+        $sql = "SELECT * FROM clientes WHERE 1=1";
+        $params = [];
+        if ($search) {
+            $sql .= " AND (nombre LIKE ? OR documento LIKE ? OR telefono LIKE ?)";
+            array_push($params, "%$search%", "%$search%", "%$search%");
+        }
+        $sql .= " ORDER BY nombre ASC LIMIT 100";
+        $stmt = $db->prepare($sql);
+        $stmt->execute($params);
+        echo json_encode($stmt->fetchAll());
+        break;
+
     case 'save_order':
         checkAuth();
         // Extract data and perform INSERT/UPDATE
@@ -290,6 +305,27 @@ switch ($action) {
             'estados' => $estados,
             'ingresos' => $ingresos
         ]);
+        break;
+
+    case 'get_config':
+        checkAuth();
+        $stmt = $db->query("SELECT clave, valor FROM configuracion");
+        $config = [];
+        while ($row = $stmt->fetch()) {
+            $config[$row['clave']] = $row['valor'];
+        }
+        // Default values
+        if (!isset($config['moneda_simbolo'])) $config['moneda_simbolo'] = '$';
+        echo json_encode($config);
+        break;
+
+    case 'save_config':
+        checkAuth('admin');
+        foreach ($data as $key => $val) {
+            $stmt = $db->prepare("INSERT INTO configuracion (clave, valor) VALUES (?, ?) ON DUPLICATE KEY UPDATE valor = ?");
+            $stmt->execute([$key, $val, $val]);
+        }
+        echo json_encode(['success' => true]);
         break;
 
     default:

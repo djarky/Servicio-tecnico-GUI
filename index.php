@@ -370,9 +370,9 @@ $isSetup = ($userCount == 0);
                 <div style="display: flex; justify-content: space-between; margin-top: 10px;">
                     <div>
                         <button class="w-btn" onclick="cerrarModal('modal-condiciones')" style="width: 80px; background: #add8e6;">Cancelar</button>
-                        <button class="w-btn" style="width: 80px; background: #add8e6;">Borrar</button>
+                        <button class="w-btn" id="btn-borrar-condiciones" onclick="borrarCondiciones()" style="width: 80px; background: #add8e6;">Borrar</button>
                     </div>
-                    <button class="w-btn" style="width: 150px; background: #add8e6;">Guardar</button>
+                    <button class="w-btn" id="btn-guardar-condiciones" onclick="guardarCondiciones()" style="width: 150px; background: #add8e6;">Guardar</button>
                 </div>
             </div>
         </div>
@@ -380,36 +380,60 @@ $isSetup = ($userCount == 0);
     
     <!-- Modal Configuración -->
     <div id="modal-config" class="win-modal" style="display: none;">
-        <div class="win-modal-content" style="width: 450px;">
+        <div class="win-modal-content" style="width: 520px;">
             <div class="win-modal-header">
                 <span>CONFIGURACION</span>
                 <button class="win-close" onclick="cerrarModal('modal-config')">×</button>
             </div>
             <div class="win-modal-body">
                 <div style="display: flex; gap: 10px;">
-                    <div style="flex: 1;">
-                        <h4 style="margin: 0 0 5px 0; font-size: 13px;">Microsoft Print to PDF</h4>
-                        <div style="border: 1px solid #ccc; background: #fff; height: 150px; overflow-y: auto; padding: 5px; font-size: 11px;">
-                            Impresoras Disponibles
+                    <div style="flex: 1.3;">
+                        <h4 style="margin: 0 0 5px 0; font-size: 13px;">Impresión</h4>
+                        <div style="border: 1px solid #ccc; background: #fff; height: 80px; overflow-y: auto; padding: 5px; font-size: 11px; margin-bottom: 15px;">
+                            <div style="color: #666; font-style: italic;">Impresoras del sistema...</div>
+                        </div>
+                        
+                        <div style="font-size: 11px; border: 1px solid #ccc; padding: 8px; background: #fff;">
+                            <label style="font-weight: bold; display: block; border-bottom: 1px solid #add8e6; margin-bottom: 8px; color: #0078d7; font-size: 12px;">Ajustes de Fuente</label>
+                            
+                            <table style="width: 100%; border-spacing: 0 5px; border-collapse: separate;">
+                                <tr>
+                                    <td style="width: 80px; font-size: 11px;">Encabezado:</td>
+                                    <td><select id="cfg-font-head" style="width: 100%; height: 20px; font-size: 11px;"></select></td>
+                                    <td style="width: 45px; padding-left: 5px;"><input type="number" id="cfg-size-head" style="width: 40px; height: 20px; font-size: 11px;"></td>
+                                </tr>
+                                <tr>
+                                    <td style="font-size: 11px;">Títulos:</td>
+                                    <td><select id="cfg-font-title" style="width: 100%; height: 20px; font-size: 11px;"></select></td>
+                                    <td style="padding-left: 5px;"><input type="number" id="cfg-size-title" style="width: 40px; height: 20px; font-size: 11px;"></td>
+                                </tr>
+                                <tr>
+                                    <td style="font-size: 11px;">Cuerpo:</td>
+                                    <td><select id="cfg-font-body" style="width: 100%; height: 20px; font-size: 11px;"></select></td>
+                                    <td style="padding-left: 5px;"><input type="number" id="cfg-size-body" style="width: 40px; height: 20px; font-size: 11px;"></td>
+                                </tr>
+                                <tr>
+                                    <td style="font-size: 11px;">Condiciones:</td>
+                                    <td><select id="cfg-font-cond" style="width: 100%; height: 20px; font-size: 11px;"></select></td>
+                                    <td style="padding-left: 5px;"><input type="number" id="cfg-size-cond" style="width: 40px; height: 20px; font-size: 11px;"></td>
+                                </tr>
+                            </table>
                         </div>
                     </div>
-                    <div style="flex: 1; display: flex; flex-direction: column; gap: 10px; font-size: 12px;">
-                        <div>
-                            <label style="font-weight: bold; display: block; margin-bottom: 2px;">Fuente Letra</label>
-                            <select style="width: 100%; font-size: 11px;"><option>Courier New</option></select>
-                        </div>
-                        <div style="display: flex; align-items: center; gap: 5px;">
-                            <input type="number" value="9" style="width: 50px; font-size: 11px;">
-                            <label style="font-weight: bold;">Tamaño Letra</label>
+                    <div style="flex: 0.7; display: flex; flex-direction: column; gap: 12px; font-size: 12px;">
+                        <div style="margin-top: 5px;">
+                        <div style="margin-top: 10px;">
+                            <label style="display: block;"><input type="radio" name="print_mode_cfg" id="cfg-mode-large" value="large" checked onchange="switchConfigMode()"> Imprimir en Media Carta</label>
+                            <label style="display: block; margin-top: 5px;"><input type="radio" name="print_mode_cfg" id="cfg-mode-ticket" value="ticket" onchange="switchConfigMode()"> Imprimir en Ticket</label>
                         </div>
                         <div style="margin-top: 10px;">
-                            <label style="display: block;"><input type="radio" name="print_mode" value="large" checked> Imprimir en Media Carta</label>
-                            <label style="display: block; margin-top: 5px;"><input type="radio" name="print_mode" value="ticket"> Imprimir en Ticket</label>
+                            <label style="font-weight: bold; display: block; margin-bottom: 2px;">Símbolo Moneda</label>
+                            <input type="text" id="cfg-moneda" value="$" style="width: 60px; font-size: 11px;">
                         </div>
                         <div style="margin-top: 10px;">
                             <label><input type="checkbox" id="chk-auto-print"> Imprimir automáticamente al guardar</label>
                         </div>
-                        <button class="w-btn mt-auto" style="background: #add8e6; height: 35px;"><i class="fas fa-plus-circle"></i> GUARDAR</button>
+                        <button class="w-btn mt-auto" style="background: #add8e6; height: 35px;" onclick="guardarConfig()"><i class="fas fa-plus-circle"></i> GUARDAR</button>
                     </div>
                 </div>
             </div>
