@@ -194,6 +194,8 @@ $isSetup = ($userCount == 0);
                         <button type="button" class="w-btn" onclick="reimprimir()"><i class="fas fa-print"></i> Reimprimir</button>
                         <button type="button" class="w-btn" onclick="mostrarModal('modal-clientes')"><i class="fas fa-user-friends"></i> Buscar Cliente</button>
                         
+                        <button type="button" class="w-btn" onclick="mostrarModal('modal-inventario')"><i class="fas fa-boxes"></i> Inventario</button>
+                        
                         <button type="button" class="w-btn" onclick="mostrarReporte()"><i class="fas fa-chart-bar"></i> Reporte Servicios</button>
                         <button type="button" class="w-btn" onclick="mostrarModal('modal-config')"><i class="fas fa-wrench"></i> Configuración</button>
                     </div>
@@ -204,6 +206,20 @@ $isSetup = ($userCount == 0);
                         
                         <label class="lbl-top mt-1">CLAVE O PATRON:</label>
                         <input type="text" id="f-clave" style="width: 100%;">
+                    </div>
+                    
+                    <div class="repuestos-box mt-1" style="background: #fff; border: 1px solid #ccc; padding: 5px; flex: 1; display: flex; flex-direction: column;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                            <label style="font-size: 11px; font-weight: bold; color: #0078d7;">REPUESTOS USADOS:</label>
+                            <button type="button" class="w-btn" style="background: #e0ecee; height: 20px; font-size: 10px; padding: 0 5px;" onclick="mostrarModalAddRepuesto()">+ Añadir</button>
+                        </div>
+                        <div style="flex: 1; overflow-y: auto; border: 1px solid #eee; min-height: 80px;">
+                            <table style="width: 100%; font-size: 10px; border-collapse: collapse;">
+                                <tbody id="lista-orden-repuestos">
+                                    <!-- JS fill -->
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -358,6 +374,126 @@ $isSetup = ($userCount == 0);
         </div>
     </div>
     
+    <!-- Modal Gestión Inventario -->
+    <div id="modal-inventario" class="win-modal" style="display: none;">
+        <div class="win-modal-content" style="width: 850px;">
+            <div class="win-modal-header">
+                <span>GESTION DE INVENTARIO</span>
+                <button class="win-close" onclick="cerrarModal('modal-inventario')">×</button>
+            </div>
+            <div class="win-modal-body" style="display: flex; gap: 15px;">
+                <!-- Panel Izquierdo: Formulario -->
+                <div style="width: 250px; display: flex; flex-direction: column; gap: 10px; border-right: 1px solid #ccc; padding-right: 15px;">
+                    <input type="hidden" id="inv-id">
+                    
+                    <div style="display: flex; flex-direction: column;">
+                        <label style="font-size: 11px; font-weight: bold; margin-bottom: 2px;">CÓDIGO/SKU:</label>
+                        <input type="text" id="inv-codigo" style="width: 100%;">
+                    </div>
+                    
+                    <div style="display: flex; flex-direction: column;">
+                        <label style="font-size: 11px; font-weight: bold; margin-bottom: 2px;">NOMBRE / ARTÍCULO *:</label>
+                        <input type="text" id="inv-nombre" style="width: 100%;" required>
+                    </div>
+
+                    <div style="display: flex; flex-direction: column;">
+                        <label style="font-size: 11px; font-weight: bold; margin-bottom: 2px;">CATEGORÍA:</label>
+                        <select id="inv-categoria" style="width: 100%; height: 24px; font-size: 11px;">
+                            <option value="">Seleccione...</option>
+                            <option value="Repuestos">Repuestos</option>
+                            <option value="Accesorios">Accesorios</option>
+                            <option value="Consumibles">Consumibles</option>
+                            <option value="Herramientas">Herramientas</option>
+                            <option value="Otros">Otros</option>
+                        </select>
+                    </div>
+
+                    <div style="display: flex; gap: 10px;">
+                        <div style="flex: 1; display: flex; flex-direction: column;">
+                            <label style="font-size: 11px; font-weight: bold; margin-bottom: 2px;">CANTIDAD:</label>
+                            <input type="number" id="inv-cantidad" style="width: 100%;" value="0" min="0">
+                        </div>
+                        <div style="flex: 1; display: flex; flex-direction: column;">
+                            <label style="font-size: 11px; font-weight: bold; margin-bottom: 2px;">UBICACIÓN:</label>
+                            <input type="text" id="inv-ubicacion" style="width: 100%;">
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 10px;">
+                        <div style="flex: 1; display: flex; flex-direction: column;">
+                            <label style="font-size: 11px; font-weight: bold; margin-bottom: 2px;">P. COSTO:</label>
+                            <input type="text" id="inv-costo" style="width: 100%; text-align: right;" value="0.00">
+                        </div>
+                        <div style="flex: 1; display: flex; flex-direction: column;">
+                            <label style="font-size: 11px; font-weight: bold; margin-bottom: 2px;">P. VENTA:</label>
+                            <input type="text" id="inv-venta" style="width: 100%; text-align: right;" value="0.00">
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; flex-direction: column;">
+                        <label style="font-size: 11px; font-weight: bold; margin-bottom: 2px;">DESCRIPCIÓN:</label>
+                        <textarea id="inv-descripcion" style="width: 100%; height: 50px; resize: none; font-size: 11px;"></textarea>
+                    </div>
+
+                    <!-- Botones de Acción -->
+                    <div style="display: flex; flex-direction: column; gap: 5px; margin-top: auto;">
+                        <button class="w-btn" style="background: #add8e6;" onclick="nuevoArticulo()"><i class="fas fa-file"></i> NUEVO</button>
+                        <button class="w-btn" style="background: #90ee90;" onclick="guardarArticulo()"><i class="fas fa-save"></i> GUARDAR</button>
+                        <button class="w-btn" style="background: #ffb6c1;" onclick="eliminarArticulo()"><i class="fas fa-trash"></i> ELIMINAR</button>
+                    </div>
+                </div>
+
+                <!-- Panel Derecho: Lista -->
+                <div style="flex: 1; display: flex; flex-direction: column; gap: 10px;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <input type="text" id="filtro-inventario" placeholder="Buscar por código, nombre o categoría..." style="flex: 1; height: 26px; font-size: 12px; padding-left: 5px;">
+                        <button class="w-btn" style="background: #e0ecee; height: 26px;" onclick="cargarInventario()"><i class="fas fa-sync"></i> Actualizar</button>
+                    </div>
+                    <div class="data-grid" style="flex: 1; border: 1px solid #ccc; background: #fff; height: 350px; overflow-y: auto;">
+                        <table class="win-table" style="width: 100%;">
+                            <thead>
+                                <tr>
+                                    <th>Código</th>
+                                    <th>Nombre</th>
+                                    <th>Cat.</th>
+                                    <th>Cant.</th>
+                                    <th>P. Venta</th>
+                                    <th>Ubic.</th>
+                                </tr>
+                            </thead>
+                            <tbody id="lista-inventario-body">
+                                <!-- JS fill -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal Add Repuesto -->
+    <div id="modal-add-repuesto" class="win-modal" style="display: none; z-index: 2000;">
+        <div class="win-modal-content" style="width: 500px;">
+            <div class="win-modal-header">
+                <span>AÑADIR REPUESTO A ORDEN</span>
+                <button class="win-close" onclick="cerrarModal('modal-add-repuesto')">×</button>
+            </div>
+            <div class="win-modal-body">
+                <input type="text" id="filtro-add-repuesto" placeholder="Buscar repuesto por código o nombre..." style="width: 100%; height: 26px; font-size: 12px; margin-bottom: 10px; padding-left: 5px;">
+                <div style="height: 250px; overflow-y: auto; border: 1px solid #ccc; background: #fff;">
+                    <table class="win-table" style="width: 100%;">
+                        <thead>
+                            <tr><th>Código</th><th>Nombre</th><th>Stock</th><th>Precio</th><th></th></tr>
+                        </thead>
+                        <tbody id="lista-add-repuestos-body">
+                            <!-- JS fill -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
     <!-- Modal Condiciones -->
     <div id="modal-condiciones" class="win-modal" style="display: none;">
         <div class="win-modal-content" style="width: 500px;">
@@ -439,6 +575,7 @@ $isSetup = ($userCount == 0);
             </div>
         </div>
     </div>
+</div>
     
     <!-- Modal Galería Multimedia -->
     <div id="modal-galeria" class="win-modal" style="display: none;">
@@ -487,10 +624,10 @@ $isSetup = ($userCount == 0);
                  <table class="win-table" style="background: white; width: 100%;">
                     <thead>
                         <tr>
-                            <th>N° Orden</th><th>Fecha</th><th>Cliente</th><th>Tipo Equipo</th><th>Marca</th><th>Modelo</th><th>Falla</th><th>Estado</th><th>Presupuesto</th><th>Abono</th><th>Total</th><th>Fecha Reparación</th><th>Fecha Entrega</th>
+                            <th>Mes</th><th>Ingresos Brutos</th><th>Costo de Materiales</th><th>Ganancia Neta</th>
                         </tr>
                     </thead>
-                    <tbody></tbody>
+                    <tbody id="reporte-finanzas-body"></tbody>
                 </table>
             </div>
             

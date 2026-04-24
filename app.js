@@ -189,6 +189,9 @@ function mostrarModal(id) {
     if (id === 'modal-clientes') {
         searchCustomers();
     }
+    if (id === 'modal-inventario') {
+        cargarInventario();
+    }
 }
 
 function cerrarModal(id) {
@@ -287,6 +290,8 @@ function nuevaOrden() {
     if (fpInstances['f-fecha']) fpInstances['f-fecha'].setDate(new Date());
     if (fpInstances['f-fecha-reparado']) fpInstances['f-fecha-reparado'].clear();
     if (fpInstances['f-fecha-entregado']) fpInstances['f-fecha-entregado'].clear();
+
+    document.getElementById('lista-orden-repuestos').innerHTML = '';
 
     updateMediaCounts(null);
     const counts = ['count-antes', 'count-durante', 'count-despues'];
@@ -501,6 +506,20 @@ function setupSearch() {
             searchCustomers();
         }, 300));
     }
+
+    const inputInventario = document.getElementById('filtro-inventario');
+    if (inputInventario) {
+        inputInventario.addEventListener('input', debounce(() => {
+            cargarInventario();
+        }, 300));
+    }
+
+    const inputAddRepuesto = document.getElementById('filtro-add-repuesto');
+    if (inputAddRepuesto) {
+        inputAddRepuesto.addEventListener('input', debounce(() => {
+            searchAddRepuestos();
+        }, 300));
+    }
 }
 
 async function searchOrders() {
@@ -577,6 +596,220 @@ function loadClient(c) {
     cerrarModal('modal-clientes');
 }
 
+// --- Inventory Logic ---
+async function cargarInventario() {
+    const txt = document.getElementById('filtro-inventario').value;
+    try {
+        const res = await fetch(`api.php?action=get_inventory&q=${txt}`);
+        const items = await res.json();
+        const tbody = document.getElementById('lista-inventario-body');
+        tbody.innerHTML = '';
+        
+        items.forEach(i => {
+            const tr = document.createElement('tr');
+            tr.style.cursor = 'pointer';
+            tr.onclick = () => loadArticulo(i);
+            tr.innerHTML = `
+                <td>${i.codigo || ''}</td>
+                <td>${i.nombre}</td>
+                <td>${i.categoria || ''}</td>
+                <td style="text-align: center; font-weight: bold; color: ${i.cantidad > 0 ? '#16a34a' : '#ef4444'}">${i.cantidad}</td>
+                <td style="text-align: right;">${formatCurrency(i.precio_venta)}</td>
+                <td>${i.ubicacion || ''}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+function loadArticulo(i) {
+    document.getElementById('inv-id').value = i.id;
+    document.getElementById('inv-codigo').value = i.codigo || '';
+    document.getElementById('inv-nombre').value = i.nombre || '';
+    document.getElementById('inv-categoria').value = i.categoria || '';
+    document.getElementById('inv-cantidad').value = i.cantidad || 0;
+    document.getElementById('inv-ubicacion').value = i.ubicacion || '';
+    document.getElementById('inv-costo').value = parseFloat(i.precio_costo).toFixed(2);
+    document.getElementById('inv-venta').value = parseFloat(i.precio_venta).toFixed(2);
+    document.getElementById('inv-descripcion').value = i.descripcion || '';
+}
+
+function nuevoArticulo() {
+    document.getElementById('inv-id').value = '';
+    document.getElementById('inv-codigo').value = '';
+    document.getElementById('inv-nombre').value = '';
+    document.getElementById('inv-categoria').value = '';
+    document.getElementById('inv-cantidad').value = '0';
+    document.getElementById('inv-ubicacion').value = '';
+    document.getElementById('inv-costo').value = '0.00';
+    document.getElementById('inv-venta').value = '0.00';
+    document.getElementById('inv-descripcion').value = '';
+}
+
+async function guardarArticulo() {
+    const id = document.getElementById('inv-id').value;
+    const nombre = document.getElementById('inv-nombre').value;
+    
+    if (!nombre.trim()) {
+        alert("El nombre del artículo es obligatorio.");
+        return;
+    }
+
+    const data = {
+        id: id,
+        codigo: document.getElementById('inv-codigo').value,
+        nombre: nombre,
+        categoria: document.getElementById('inv-categoria').value,
+        cantidad: document.getElementById('inv-cantidad').value,
+        ubicacion: document.getElementById('inv-ubicacion').value,
+        precio_costo: document.getElementById('inv-costo').value,
+        precio_venta: document.getElementById('inv-venta').value,
+        descripcion: document.getElementById('inv-descripcion').value
+    };
+
+    try {
+        const res = await fetch('api.php?action=save_inventory_item', {
+            method: 'POST',
+            body: JSON.stringify(data)
+        });
+        const result = await res.json();
+        
+        if (result.success) {
+            alert("Artículo guardado.");
+            if (result.id) document.getElementById('inv-id').value = result.id;
+            cargarInventario();
+        } else {
+            alert("Error: " + (result.error || "Desconocido"));
+        }
+    } catch (err) {
+        console.error(err);
+        alert("Error de comunicación con el servidor.");
+    }
+}
+
+async function eliminarArticulo() {
+    const id = document.getElementById('inv-id').value;
+    if (!id) {
+        alert("Seleccione un artículo para eliminar.");
+        return;
+    }
+    
+    if (confirm("¿Seguro que desea eliminar este artículo del inventario?")) {
+        try {
+            const res = await fetch(`api.php?action=delete_inventory_item&id=${id}`);
+            const result = await res.json();
+            
+            if (result.success) {
+                alert("Artículo eliminado.");
+                nuevoArticulo();
+                cargarInventario();
+            } else {
+                alert("Error: " + (result.error || "Desconocido"));
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    }
+}
+
+// --- Order Items Logic ---
+function mostrarModalAddRepuesto() {
+    const id_orden = document.getElementById('f-id-orden').value;
+    if (!id_orden) {
+        alert('Debe guardar o cargar una orden primero antes de agregar repuestos.');
+        return;
+    }
+    document.getElementById('modal-add-repuesto').style.display = 'flex';
+    searchAddRepuestos();
+}
+
+async function searchAddRepuestos() {
+    const txt = document.getElementById('filtro-add-repuesto').value;
+    try {
+        const res = await fetch(`api.php?action=get_inventory&q=${txt}`);
+        const items = await res.json();
+        const tbody = document.getElementById('lista-add-repuestos-body');
+        tbody.innerHTML = '';
+        
+        items.forEach(i => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${i.codigo || ''}</td>
+                <td>${i.nombre}</td>
+                <td style="color: ${i.cantidad > 0 ? 'green' : 'red'}; font-weight: bold;">${i.cantidad}</td>
+                <td>${formatCurrency(i.precio_venta)}</td>
+                <td>
+                    <button class="w-btn" style="background: #add8e6; padding: 2px 8px; font-size: 10px;" onclick="addRepuestoToOrder(${i.id})" ${i.cantidad <= 0 ? 'disabled' : ''}>Añadir</button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+async function addRepuestoToOrder(id_inventario) {
+    const id_orden = document.getElementById('f-id-orden').value;
+    try {
+        const res = await fetch('api.php?action=add_order_item', {
+            method: 'POST',
+            body: JSON.stringify({ id_orden: id_orden, id_inventario: id_inventario, cantidad: 1 })
+        });
+        const result = await res.json();
+        if (result.success) {
+            searchAddRepuestos(); // refresh stock in modal
+            cargarRepuestosOrden(); // refresh order list
+        } else {
+            alert('Error: ' + result.error);
+        }
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+async function cargarRepuestosOrden() {
+    const id_orden = document.getElementById('f-id-orden').value;
+    if (!id_orden) {
+        document.getElementById('lista-orden-repuestos').innerHTML = '';
+        return;
+    }
+    try {
+        const res = await fetch(`api.php?action=get_order_items&id_orden=${id_orden}`);
+        const items = await res.json();
+        const tbody = document.getElementById('lista-orden-repuestos');
+        tbody.innerHTML = '';
+        
+        items.forEach(i => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td style="padding: 2px; width: 30px; text-align: center;">${i.cantidad}x</td>
+                <td style="padding: 2px;">${i.nombre}</td>
+                <td style="padding: 2px; text-align: right; width: 60px;">${formatCurrency(i.precio_venta)}</td>
+                <td style="padding: 2px; text-align: center; width: 30px;"><span style="cursor: pointer; color: red;" onclick="eliminarRepuestoOrden(${i.id})" title="Quitar y devolver al inventario"><i class="fas fa-times"></i></span></td>
+            `;
+            tbody.appendChild(tr);
+        });
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+async function eliminarRepuestoOrden(id) {
+    if (!confirm('¿Quitar repuesto de la orden y devolver al inventario?')) return;
+    try {
+        const res = await fetch(`api.php?action=delete_order_item&id=${id}`);
+        const result = await res.json();
+        if (result.success) {
+            cargarRepuestosOrden();
+        }
+    } catch (err) {
+        console.error(err);
+    }
+}
+
 function loadOrder(o) {
     document.getElementById('f-id-orden').value = o.id_orden;
     document.getElementById('f-documento').value = o.cliente_doc || '';
@@ -618,6 +851,7 @@ function loadOrder(o) {
 
     calculateBalance();
     updateMediaCounts(o.id_orden);
+    cargarRepuestosOrden();
     cerrarModal('modal-buscar-orden');
 }
 
@@ -844,34 +1078,27 @@ async function fetchReportes() {
     if(desde && hasta) url += `&desde=${desde}&hasta=${hasta}`; // Note: Backend search might need adjustment for dates in get_orders too if we want full sync
 
     try {
-        const res = await fetch(url);
-        const orders = await res.json();
-        const tbody = document.querySelector('#view-reportes tbody');
-        tbody.innerHTML = '';
+        const tbody = document.querySelector('#reporte-finanzas-body');
+        if (tbody) tbody.innerHTML = '';
         
-        orders.forEach(o => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td>${o.id_orden}</td>
-                <td>${o.fecha}</td>
-                <td>${o.cliente_nombre}</td>
-                <td>${o.tipo_equipo}</td>
-                <td>${o.marca}</td>
-                <td>${o.modelo}</td>
-                <td>${o.falla}</td>
-                <td>${o.estado}</td>
-                <td>${formatCurrency(o.presupuesto)}</td>
-                <td>${formatCurrency(o.abono)}</td>
-                <td>${formatCurrency(o.presupuesto - o.abono)}</td>
-                <td>${o.reparado || '-'}</td>
-                <td>${o.entregado || '-'}</td>
-            `;
-            tbody.appendChild(tr);
-        });
-
         // 2. Fetch Aggregated Chart Data
         const resReport = await fetch(`api.php?action=get_report_data&desde=${desde}&hasta=${hasta}`);
         const reportData = await resReport.json();
+        
+        if (tbody) {
+            reportData.ingresos.forEach(i => {
+                const tr = document.createElement('tr');
+                const ganancia = i.value - i.costo;
+                tr.innerHTML = `
+                    <td>${i.label}</td>
+                    <td>${formatCurrency(i.value)}</td>
+                    <td style="color: #ef4444;">${formatCurrency(i.costo)}</td>
+                    <td style="color: #16a34a; font-weight: bold;">${formatCurrency(ganancia)}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
         renderCharts(reportData);
 
     } catch (err) {
@@ -925,17 +1152,33 @@ function renderCharts(data) {
         type: 'bar',
         data: {
             labels: data.ingresos.map(i => i.label),
-            datasets: [{
-                label: 'Ingresos Mensuales',
-                data: data.ingresos.map(i => i.value),
-                backgroundColor: '#3b82f6',
-                borderColor: '#2563eb',
-                borderWidth: 1
-            }]
+            datasets: [
+                {
+                    label: 'Ingresos',
+                    data: data.ingresos.map(i => i.value),
+                    backgroundColor: '#3b82f6',
+                    borderColor: '#2563eb',
+                    borderWidth: 1
+                },
+                {
+                    label: 'Costo Material',
+                    data: data.ingresos.map(i => i.costo),
+                    backgroundColor: '#ef4444',
+                    borderColor: '#dc2626',
+                    borderWidth: 1
+                },
+                {
+                    label: 'Ganancia Neta',
+                    data: data.ingresos.map(i => i.value - i.costo),
+                    backgroundColor: '#10b981',
+                    borderColor: '#059669',
+                    borderWidth: 1
+                }
+            ]
         },
         options: {
             ...commonOptions,
-            plugins: { ...commonOptions.plugins, legend: { display: false } },
+            plugins: { ...commonOptions.plugins, legend: { display: true } },
             scales: {
                 y: { beginAtZero: true, ticks: { callback: value => (appConfig.moneda_simbolo || '$') + value } }
             }

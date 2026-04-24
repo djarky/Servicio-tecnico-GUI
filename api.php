@@ -295,8 +295,21 @@ switch ($action) {
         $stmt->execute([$desde, $hasta]);
         $estados = $stmt->fetchAll();
         
-        // 3. Ingresos Mensuales
-        $stmt = $db->prepare("SELECT DATE_FORMAT(fecha, '%Y-%m') as label, SUM(presupuesto) as value FROM ordenes WHERE fecha BETWEEN ? AND ? GROUP BY label ORDER BY label ASC");
+        // 3. Ingresos Mensuales y Gastos
+        $stmt = $db->prepare("
+            SELECT 
+                DATE_FORMAT(o.fecha, '%Y-%m') as label, 
+                SUM(o.presupuesto) as value,
+                SUM(
+                    (SELECT COALESCE(SUM(orep.precio_costo * orep.cantidad), 0) 
+                     FROM orden_repuestos orep 
+                     WHERE orep.id_orden = o.id_orden)
+                ) as costo
+            FROM ordenes o 
+            WHERE o.fecha BETWEEN ? AND ? 
+            GROUP BY label 
+            ORDER BY label ASC
+        ");
         $stmt->execute([$desde, $hasta]);
         $ingresos = $stmt->fetchAll();
         
@@ -326,6 +339,119 @@ switch ($action) {
             $stmt->execute([$key, $val, $val]);
         }
         echo json_encode(['success' => true]);
+        break;
+
+    case 'get_inventory':
+        checkAuth();
+        $search = $_GET['q'] ?? '';
+        $sql = "SELECT * FROM inventario WHERE 1=1";
+        $params = [];
+        if ($search) {
+            $sql .= " AND (nombre LIKE ? OR codigo LIKE ? OR categoria LIKE ?)";
+            array_push($params, "%$search%", "%$search%", "%$search%");
+        }
+        $sql .= " ORDER BY nombre ASC";
+        $stmt = $db->prepare($sql);
+        $stmt->execute($params);
+        echo json_encode($stmt->fetchAll());
+        break;
+
+    case 'save_inventory_item':
+        checkAuth();
+        $id = $data['id'] ?? null;
+        $codigo = $data['codigo'] ?? '';
+        $nombre = $data['nombre'] ?? '';
+        $descripcion = $data['descripcion'] ?? '';
+        $categoria = $data['categoria'] ?? '';
+        $cantidad = (int)($data['cantidad'] ?? 0);
+        $precio_costo = (float)($data['precio_costo'] ?? 0);
+        $precio_venta = (float)($data['precio_venta'] ?? 0);
+        $ubicacion = $data['ubicacion'] ?? '';
+
+        if ($id) {
+            $stmt = $db->prepare("UPDATE inventario SET codigo=?, nombre=?, descripcion=?, categoria=?, cantidad=?, precio_costo=?, precio_venta=?, ubicacion=? WHERE id=?");
+            $stmt->execute([$codigo, $nombre, $descripcion, $categoria, $cantidad, $precio_costo, $precio_venta, $ubicacion, $id]);
+            echo json_encode(['success' => true]);
+        } else {
+            $stmt = $db->prepare("INSERT INTO inventario (codigo, nombre, descripcion, categoria, cantidad, precio_costo, precio_venta, ubicacion) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$codigo, $nombre, $descripcion, $categoria, $cantidad, $precio_costo, $precio_venta, $ubicacion]);
+            echo json_encode(['success' => true, 'id' => $db->lastInsertId()]);
+        }
+        break;
+
+    case 'get_order_items':
+        checkAuth();
+        $id_orden = $_GET['id_orden'] ?? null;
+        if ($id_orden) {
+            $stmt = $db->prepare("SELECT orp.*, i.nombre, i.codigo FROM orden_repuestos orp JOIN inventario i ON orp.id_inventario = i.id WHERE orp.id_orden = ?");
+            $stmt->execute([$id_orden]);
+            echo json_encode($stmt->fetchAll());
+        } else {
+            echo json_encode([]);
+        }
+        break;
+
+    case 'add_order_item':
+        checkAuth();
+        $id_orden = $data['id_orden'] ?? null;
+        $id_inventario = $data['id_inventario'] ?? null;
+        $cantidad = (int)($data['cantidad'] ?? 1);
+        
+        if ($id_orden && $id_inventario) {
+            // Obtener precio de costo y venta del inventario
+            $stmt = $db->prepare("SELECT precio_costo, precio_venta, cantidad FROM inventario WHERE id = ?");
+            $stmt->execute([$id_inventario]);
+            $inv = $stmt->fetch();
+            
+            if ($inv && $inv['cantidad'] >= $cantidad) {
+                // Descontar del inventario
+                $stmt = $db->prepare("UPDATE inventario SET cantidad = cantidad - ? WHERE id = ?");
+                $stmt->execute([$cantidad, $id_inventario]);
+                
+                // Agregar a orden
+                $stmt = $db->prepare("INSERT INTO orden_repuestos (id_orden, id_inventario, cantidad, precio_costo, precio_venta) VALUES (?, ?, ?, ?, ?)");
+                $stmt->execute([$id_orden, $id_inventario, $cantidad, $inv['precio_costo'], $inv['precio_venta']]);
+                
+                echo json_encode(['success' => true]);
+            } else {
+                http_response_code(400);
+                echo json_encode(['error' => 'Stock insuficiente']);
+            }
+        }
+        break;
+
+    case 'delete_order_item':
+        checkAuth();
+        $id = $_GET['id'] ?? null;
+        if ($id) {
+            // Restaurar stock
+            $stmt = $db->prepare("SELECT id_inventario, cantidad FROM orden_repuestos WHERE id = ?");
+            $stmt->execute([$id]);
+            $item = $stmt->fetch();
+            
+            if ($item) {
+                $stmt = $db->prepare("UPDATE inventario SET cantidad = cantidad + ? WHERE id = ?");
+                $stmt->execute([$item['cantidad'], $item['id_inventario']]);
+                
+                $stmt = $db->prepare("DELETE FROM orden_repuestos WHERE id = ?");
+                $stmt->execute([$id]);
+                echo json_encode(['success' => true]);
+            }
+        }
+        break;
+
+    case 'delete_inventory_item':
+        checkAuth('admin'); // Only admins can delete items completely
+        $id = $_GET['id'] ?? null;
+        if ($id) {
+            $stmt = $db->prepare("DELETE FROM inventario WHERE id = ?");
+            if ($stmt->execute([$id])) {
+                echo json_encode(['success' => true]);
+            } else {
+                http_response_code(500);
+                echo json_encode(['error' => 'No se pudo eliminar el artículo']);
+            }
+        }
         break;
 
     default:
