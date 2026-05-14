@@ -17,6 +17,11 @@ if (!$order) {
     die("Orden no encontrada");
 }
 
+// Security: If logged in as client, only allow viewing their own order
+if (isset($_SESSION['cliente_id']) && $order['id_cliente'] != $_SESSION['cliente_id']) {
+    die("Acceso denegado a esta orden.");
+}
+
 // Fetch Global Config
 $config = [];
 $cfg_stmt = $db->query("SELECT clave, valor FROM configuracion");

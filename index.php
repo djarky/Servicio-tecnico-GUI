@@ -68,12 +68,25 @@ $isSetup = ($userCount == 0);
     </div>
 
     <!-- Login Overlay -->
-    <div id="login-overlay" style="display: <?= (!$isSetup && !isset($_SESSION['user_id'])) ? 'flex' : 'none' ?>;">
-        <div class="card login-card">
+    <div id="login-overlay" style="display: <?= (!$isSetup && !isset($_SESSION['user_id']) && !isset($_SESSION['cliente_id'])) ? 'flex' : 'none' ?>;">
+        <div class="card login-card" style="width: 380px;">
             <div style="text-align: center; margin-bottom: 1rem;">
                 <img src="imagenes/logo.png" alt="Logo" style="width: 80px; height: 80px; object-fit: cover; border-radius: 50%; border: 2px solid #333; padding: 2px; background: white;">
             </div>
-            <h2 style="text-align: center; margin-bottom: 2rem;">Iniciar Sesión</h2>
+            <h2 style="text-align: center; margin-bottom: 1.5rem;">Bienvenido</h2>
+            
+            <div class="role-selector">
+                <div class="role-btn active" id="role-staff" onclick="selectRole('staff')">
+                    <i class="fas fa-user-shield"></i>
+                    <span>PERSONAL</span>
+                </div>
+                <div class="role-btn" id="role-cliente" onclick="selectRole('cliente')">
+                    <i class="fas fa-user-tag"></i>
+                    <span>CLIENTE</span>
+                </div>
+            </div>
+
+            <!-- Staff Form -->
             <form id="login-form">
                 <div class="form-group">
                     <label>Usuario</label>
@@ -86,11 +99,26 @@ $isSetup = ($userCount == 0);
                 <button type="submit" class="btn btn-primary" style="width: 100%;">Ingresar</button>
                 <div id="login-error" style="color: #ef4444; margin-top: 1rem; font-size: 0.875rem; text-align: center; display: none;"></div>
             </form>
+
+            <!-- Client Form -->
+            <form id="client-login-form" style="display: none;">
+                <div class="form-group">
+                    <label>N° Documento / Identificación</label>
+                    <input type="text" id="client-login-doc" required placeholder="Ej: 12345678">
+                </div>
+                <div class="form-group">
+                    <label>Nombre del Cliente</label>
+                    <input type="text" id="client-login-name" required placeholder="Ej: Juan Perez">
+                </div>
+                <p style="font-size: 10px; color: #666; font-style: italic; margin-bottom: 10px;">Ingrese su número de documento y nombre exactamente como los registró al entregar su equipo.</p>
+                <button type="submit" class="btn btn-primary" style="width: 100%; background: #2563eb; color: white;">Consultar Estado</button>
+                <div id="client-login-error" style="color: #ef4444; margin-top: 1rem; font-size: 0.875rem; text-align: center; display: none;"></div>
+            </form>
         </div>
     </div>
 
     <!-- Main Window Form -->
-    <div class="win-form" style="display: <?= (!$isSetup && isset($_SESSION['user_id'])) ? 'block' : 'none' ?>;" id="main-win-form">
+    <div class="win-form" style="display: <?= (!$isSetup && (isset($_SESSION['user_id']) || isset($_SESSION['cliente_id']))) ? 'block' : 'none' ?>;" id="main-win-form">
         <!-- Form Area -->
         <div class="win-body">
             
@@ -132,6 +160,10 @@ $isSetup = ($userCount == 0);
                             <div class="f-row mt-1">
                                 <label class="lbl-right" style="width: 130px;">DIRECCION O CORREO E:</label>
                                 <input type="text" id="f-direccion" style="flex: 1;">
+                            </div>
+                            <div id="audit-container" class="audit-info" style="display: none;">
+                                <i class="fas fa-history"></i> 
+                                <span id="audit-text"></span>
                             </div>
                         </div>
                     </div>
@@ -196,8 +228,10 @@ $isSetup = ($userCount == 0);
                         
                         <button type="button" class="w-btn" onclick="mostrarModal('modal-inventario')"><i class="fas fa-boxes"></i> Inventario</button>
                         
-                        <button type="button" class="w-btn" onclick="mostrarReporte()"><i class="fas fa-chart-bar"></i> Reporte Servicios</button>
-                        <button type="button" class="w-btn" onclick="mostrarModal('modal-config')"><i class="fas fa-wrench"></i> Configuración</button>
+                        <button type="button" class="w-btn" id="btn-reportes" onclick="mostrarReporte()"><i class="fas fa-chart-bar"></i> Reporte Servicios</button>
+                        <button type="button" class="w-btn" id="btn-config" onclick="mostrarModal('modal-config')"><i class="fas fa-wrench"></i> Configuración</button>
+                        <button type="button" class="w-btn" id="btn-empleados" onclick="mostrarModal('modal-empleados')" style="background: #e0f2fe; border-color: #7dd3fc;"><i class="fas fa-users-cog"></i> Empleados</button>
+                        <button type="button" class="w-btn" onclick="logout()" style="background: #fee2e2; border-color: #fca5a5; margin-top: 10px;"><i class="fas fa-sign-out-alt"></i> Salir</button>
                     </div>
 
                     <div class="accesorios-box mt-1">
@@ -399,11 +433,11 @@ $isSetup = ($userCount == 0);
                     <div style="display: flex; flex-direction: column;">
                         <label style="font-size: 11px; font-weight: bold; margin-bottom: 2px;">CATEGORÍA:</label>
                         <select id="inv-categoria" style="width: 100%; height: 24px; font-size: 11px;">
-                            <option value="">Seleccione...</option>
-                            <option value="Repuestos">Repuestos</option>
-                            <option value="Accesorios">Accesorios</option>
-                            <option value="Consumibles">Consumibles</option>
-                            <option value="Herramientas">Herramientas</option>
+                            <option value="Pantallas">Pantallas</option>
+                            <option value="Teclados">Teclados</option>
+                            <option value="Baterías">Baterías</option>
+                            <option value="Micrófono">Micrófono</option>
+                            <option value="Conector">Conector</option>
                             <option value="Otros">Otros</option>
                         </select>
                     </div>
@@ -558,25 +592,76 @@ $isSetup = ($userCount == 0);
                     </div>
                     <div style="flex: 0.7; display: flex; flex-direction: column; gap: 12px; font-size: 12px;">
                         <div style="margin-top: 5px;">
-                        <div style="margin-top: 10px;">
-                            <label style="display: block;"><input type="radio" name="print_mode_cfg" id="cfg-mode-large" value="large" checked onchange="switchConfigMode()"> Imprimir en Media Carta</label>
-                            <label style="display: block; margin-top: 5px;"><input type="radio" name="print_mode_cfg" id="cfg-mode-ticket" value="ticket" onchange="switchConfigMode()"> Imprimir en Ticket</label>
+                            <div style="margin-top: 10px;">
+                                <label style="display: block;"><input type="radio" name="print_mode_cfg" id="cfg-mode-large" value="large" checked onchange="switchConfigMode()"> Imprimir en Media Carta</label>
+                                <label style="display: block; margin-top: 5px;"><input type="radio" name="print_mode_cfg" id="cfg-mode-ticket" value="ticket" onchange="switchConfigMode()"> Imprimir en Ticket</label>
+                            </div>
+                            <div style="margin-top: 10px;">
+                                <label style="font-weight: bold; display: block; margin-bottom: 2px;">Símbolo Moneda</label>
+                                <input type="text" id="cfg-moneda" value="$" style="width: 60px; font-size: 11px;">
+                            </div>
+                            <div style="margin-top: 10px;">
+                                <label><input type="checkbox" id="chk-auto-print"> Imprimir automáticamente al guardar</label>
+                            </div>
+                            <button class="w-btn mt-auto" style="background: #add8e6; height: 35px; width: 100%; margin-top: 15px;" onclick="guardarConfig()"><i class="fas fa-plus-circle"></i> GUARDAR</button>
                         </div>
-                        <div style="margin-top: 10px;">
-                            <label style="font-weight: bold; display: block; margin-bottom: 2px;">Símbolo Moneda</label>
-                            <input type="text" id="cfg-moneda" value="$" style="width: 60px; font-size: 11px;">
-                        </div>
-                        <div style="margin-top: 10px;">
-                            <label><input type="checkbox" id="chk-auto-print"> Imprimir automáticamente al guardar</label>
-                        </div>
-                        <button class="w-btn mt-auto" style="background: #add8e6; height: 35px;" onclick="guardarConfig()"><i class="fas fa-plus-circle"></i> GUARDAR</button>
                     </div>
-                </div>
             </div>
         </div>
     </div>
 </div>
     
+    <!-- Modal Gestión Empleados -->
+    <div id="modal-empleados" class="win-modal" style="display: none;">
+        <div class="win-modal-content" style="width: 650px;">
+            <div class="win-modal-header">
+                <span>GESTION DE EMPLEADOS / PERSONAL</span>
+                <button class="win-close" onclick="cerrarModal('modal-empleados')">×</button>
+            </div>
+            <div class="win-modal-body" style="display: flex; gap: 15px;">
+                <div style="width: 200px; display: flex; flex-direction: column; gap: 8px;">
+                    <input type="hidden" id="emp-id">
+                    <div class="form-group">
+                        <label>Nombre Completo</label>
+                        <input type="text" id="emp-nombre" style="width: 100%;">
+                    </div>
+                    <div class="form-group">
+                        <label>Usuario</label>
+                        <input type="text" id="emp-usuario" style="width: 100%;">
+                    </div>
+                    <div class="form-group">
+                        <label>Contraseña</label>
+                        <input type="password" id="emp-password" style="width: 100%;" placeholder="Vacio = sin cambio">
+                    </div>
+                    <div class="form-group">
+                        <label>Rol</label>
+                        <select id="emp-rol" style="width: 100%;">
+                            <option value="empleado">Empleado</option>
+                            <option value="admin">Administrador</option>
+                        </select>
+                    </div>
+                    <button class="w-btn" style="background: #90ee90; width: 100%; margin-top: 10px;" onclick="guardarEmpleado()">GUARDAR</button>
+                    <button class="w-btn" style="background: #ffb6c1; width: 100%;" onclick="eliminarEmpleado()">ELIMINAR</button>
+                    <button class="w-btn" style="background: #add8e6; width: 100%;" onclick="nuevoEmpleado()">NUEVO</button>
+                </div>
+                <div class="data-grid" style="flex: 1; border: 1px solid #ccc; background: #fff; height: 350px; overflow-y: auto;">
+                    <table class="win-table" style="width: 100%;">
+                        <thead>
+                            <tr>
+                                <th>Nombre</th>
+                                <th>Usuario</th>
+                                <th>Rol</th>
+                            </tr>
+                        </thead>
+                        <tbody id="lista-empleados-body">
+                            <!-- JS fill -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal Galería Multimedia -->
     <div id="modal-galeria" class="win-modal" style="display: none;">
         <div class="win-modal-content" style="width: 700px; height: 500px;">
@@ -680,6 +765,10 @@ $isSetup = ($userCount == 0);
 
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://npmcdn.com/flatpickr/dist/l10n/es.js"></script>
+    <script>
+        const USER_ROLE = '<?= $_SESSION['role'] ?? '' ?>';
+        const USER_NAME = '<?= $_SESSION['nombre'] ?? '' ?>';
+    </script>
     <script src="app.js"></script>
 </body>
 </html>

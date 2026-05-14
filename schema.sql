@@ -1,4 +1,5 @@
 -- Schema for Servicio Técnico (MySQL)
+-- Corregido: Orden de creación para evitar errores de llave foránea
 
 CREATE DATABASE IF NOT EXISTS servicio_tecnico;
 USE servicio_tecnico;
@@ -9,7 +10,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
     nombre VARCHAR(100) NOT NULL,
     usuario VARCHAR(50) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
-    rol ENUM('admin', 'user') NOT NULL DEFAULT 'user',
+    rol ENUM('admin', 'empleado', 'cliente') NOT NULL DEFAULT 'cliente',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -21,6 +22,21 @@ CREATE TABLE IF NOT EXISTS clientes (
     documento VARCHAR(50) UNIQUE,
     telefono VARCHAR(50),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Inventario (Debe estar antes de orden_repuestos)
+CREATE TABLE IF NOT EXISTS inventario (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    codigo VARCHAR(100),
+    nombre VARCHAR(150) NOT NULL,
+    descripcion TEXT,
+    categoria VARCHAR(100),
+    cantidad INT DEFAULT 0,
+    precio_costo DECIMAL(10, 2) DEFAULT 0.00,
+    precio_venta DECIMAL(10, 2) DEFAULT 0.00,
+    ubicacion VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
 -- Orders Table
@@ -45,8 +61,12 @@ CREATE TABLE IF NOT EXISTS ordenes (
     imagen1 VARCHAR(255),
     imagen2 VARCHAR(255),
     imagen3 VARCHAR(255),
+    id_usuario_creador INT,
+    id_usuario_actualizador INT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (id_cliente) REFERENCES clientes(id_cliente) ON DELETE CASCADE
+    FOREIGN KEY (id_cliente) REFERENCES clientes(id_cliente) ON DELETE CASCADE,
+    FOREIGN KEY (id_usuario_creador) REFERENCES usuarios(id) ON DELETE SET NULL,
+    FOREIGN KEY (id_usuario_actualizador) REFERENCES usuarios(id) ON DELETE SET NULL
 );
 
 -- Order Items Table (Materiales/Repuestos usados)
@@ -86,20 +106,3 @@ CREATE TABLE IF NOT EXISTS orden_archivos (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (id_orden) REFERENCES ordenes(id_orden) ON DELETE CASCADE
 );
-
--- Inventario
-CREATE TABLE IF NOT EXISTS inventario (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    codigo VARCHAR(100),
-    nombre VARCHAR(150) NOT NULL,
-    descripcion TEXT,
-    categoria VARCHAR(100),
-    cantidad INT DEFAULT 0,
-    precio_costo DECIMAL(10, 2) DEFAULT 0.00,
-    precio_venta DECIMAL(10, 2) DEFAULT 0.00,
-    ubicacion VARCHAR(100),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-);
-
--- Base de datos lista para recibir administradores via front-end

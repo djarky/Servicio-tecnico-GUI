@@ -13,6 +13,7 @@ function initApp() {
     setupReportPickers();
     fillFontSelectors();
     cargarConfig();
+    enforcePermissions();
 }
 
 let appConfig = { moneda_simbolo: '$' };
@@ -235,6 +236,25 @@ function setupSetup() {
     }
 }
 
+function selectRole(role) {
+    const staffBtn = document.getElementById('role-staff');
+    const clienteBtn = document.getElementById('role-cliente');
+    const staffForm = document.getElementById('login-form');
+    const clienteForm = document.getElementById('client-login-form');
+
+    if (role === 'staff') {
+        staffBtn.classList.add('active');
+        clienteBtn.classList.remove('active');
+        staffForm.style.display = 'block';
+        clienteForm.style.display = 'none';
+    } else {
+        staffBtn.classList.remove('active');
+        clienteBtn.classList.add('active');
+        staffForm.style.display = 'none';
+        clienteForm.style.display = 'block';
+    }
+}
+
 function setupLogin() {
     const loginForm = document.getElementById('login-form');
     if (loginForm) {
@@ -254,6 +274,33 @@ function setupLogin() {
                     window.location.reload();
                 } else {
                     const errorDiv = document.getElementById('login-error');
+                    errorDiv.innerText = data.error;
+                    errorDiv.style.display = 'block';
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        });
+    }
+
+    const clientLoginForm = document.getElementById('client-login-form');
+    if (clientLoginForm) {
+        clientLoginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const documento = document.getElementById('client-login-doc').value;
+            const nombre = document.getElementById('client-login-name').value;
+            
+            try {
+                const res = await fetch('api.php?action=client_login', {
+                    method: 'POST',
+                    body: JSON.stringify({ documento, nombre })
+                });
+                const data = await res.json();
+                
+                if (data.success) {
+                    window.location.reload();
+                } else {
+                    const errorDiv = document.getElementById('client-login-error');
                     errorDiv.innerText = data.error;
                     errorDiv.style.display = 'block';
                 }
@@ -828,6 +875,20 @@ function loadOrder(o) {
     document.getElementById('f-abono').value = o.abono || '0.00';
     document.getElementById('f-estado').value = o.estado || 'POR REVISAR';
     
+    // Auditoría
+    const auditText = document.getElementById('audit-text');
+    const auditCont = document.getElementById('audit-container');
+    if (o.creador_nombre) {
+        let text = `Registrado por: ${o.creador_nombre}`;
+        if (o.actualizador_nombre) {
+            text += ` | Última edición por: ${o.actualizador_nombre}`;
+        }
+        auditText.innerText = text;
+        auditCont.style.display = 'block';
+    } else {
+        auditCont.style.display = 'none';
+    }
+
     // Actualizar fechas en Flatpickr
     if (fpInstances['f-fecha']) fpInstances['f-fecha'].setDate(o.fecha || '');
     if (fpInstances['f-fecha-reparado']) fpInstances['f-fecha-reparado'].setDate(o.reparado || '');
@@ -853,6 +914,10 @@ function loadOrder(o) {
     updateMediaCounts(o.id_orden);
     cargarRepuestosOrden();
     cerrarModal('modal-buscar-orden');
+
+    if (USER_ROLE === 'cliente') {
+        disableAllInputs();
+    }
 }
 
 async function eliminarOrden() {
@@ -1259,3 +1324,140 @@ function visorTogglePlay() {
     video.onplay = () => btnPlay.innerHTML = '<i class="fas fa-pause"></i>';
     video.onpause = () => btnPlay.innerHTML = '<i class="fas fa-play"></i>';
 }
+// --- Permissions Enforcement ---
+function enforcePermissions() {
+    if (!USER_ROLE) return;
+
+    if (USER_ROLE === 'empleado') {
+        // Ocultar botones de administración
+        const toHide = ['btn-config', 'btn-empleados', 'btn-reportes', 'btn-borrar-condiciones', 'btn-guardar-condiciones'];
+        toHide.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.style.display = 'none';
+        });
+
+        // Bloquear eliminación de órdenes
+        const btnEliminar = document.querySelector('button[onclick="eliminarOrden()"]');
+        if (btnEliminar) btnEliminar.style.display = 'none';
+
+        // Bloquear gestión de inventario manual
+        const btnInventario = document.querySelector('button[onclick="mostrarModal(\'modal-inventario\')"]');
+        if (btnInventario) btnInventario.style.display = 'none';
+    }
+
+    if (USER_ROLE === 'cliente') {
+        // Modo lectura total
+        const toHide = [
+            'btn-reportes', 'btn-config', 'btn-empleados', 
+            'btnGuardarOrden', 'btn-borrar-condiciones', 'btn-guardar-condiciones'
+        ];
+        toHide.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.style.display = 'none';
+        });
+
+        // Ocultar todos los botones de acción excepto imprimir y buscar (buscar será limitado por API)
+        const allButtons = document.querySelectorAll('.w-btn');
+        allButtons.forEach(btn => {
+            const onclick = btn.getAttribute('onclick');
+            if (onclick && !onclick.includes('reimprimir') && !onclick.includes('mostrarModal(\'modal-buscar-orden\')') && !onclick.includes('logout')) {
+                btn.style.display = 'none';
+            }
+        });
+
+        // Deshabilitar inputs
+        disableAllInputs();
+        
+        // Cargar órdenes del cliente automáticamente al entrar
+        searchOrders();
+    }
+}
+
+function disableAllInputs() {
+    const inputs = document.querySelectorAll('input, select, textarea');
+    inputs.forEach(i => {
+        if (i.id !== 'b-orden-texto') { // Dejar el buscador libre
+            i.disabled = true;
+        }
+    });
+}
+
+// --- Employee Management ---
+async function cargarEmpleados() {
+    try {
+        const res = await fetch('api.php?action=get_employees');
+        const emps = await res.json();
+        const tbody = document.getElementById('lista-empleados-body');
+        tbody.innerHTML = '';
+        emps.forEach(e => {
+            const tr = document.createElement('tr');
+            tr.style.cursor = 'pointer';
+            tr.onclick = () => loadEmpleado(e);
+            tr.innerHTML = `<td>${e.nombre}</td><td>${e.usuario}</td><td>${e.rol}</td>`;
+            tbody.appendChild(tr);
+        });
+    } catch (err) { console.error(err); }
+}
+
+function loadEmpleado(e) {
+    document.getElementById('emp-id').value = e.id;
+    document.getElementById('emp-nombre').value = e.nombre;
+    document.getElementById('emp-usuario').value = e.usuario;
+    document.getElementById('emp-password').value = '';
+    document.getElementById('emp-rol').value = e.rol;
+}
+
+function nuevoEmpleado() {
+    document.getElementById('emp-id').value = '';
+    document.getElementById('emp-nombre').value = '';
+    document.getElementById('emp-usuario').value = '';
+    document.getElementById('emp-password').value = '';
+    document.getElementById('emp-rol').value = 'empleado';
+}
+
+async function guardarEmpleado() {
+    const data = {
+        id: document.getElementById('emp-id').value,
+        nombre: document.getElementById('emp-nombre').value,
+        usuario: document.getElementById('emp-usuario').value,
+        password: document.getElementById('emp-password').value,
+        rol: document.getElementById('emp-rol').value
+    };
+    if (!data.nombre || !data.usuario || (!data.id && !data.password)) {
+        alert("Nombre, usuario y contraseña son requeridos.");
+        return;
+    }
+    const res = await fetch('api.php?action=save_employee', {
+        method: 'POST',
+        body: JSON.stringify(data)
+    });
+    const result = await res.json();
+    if (result.success) {
+        alert("Empleado guardado");
+        cargarEmpleados();
+        nuevoEmpleado();
+    }
+}
+
+async function eliminarEmpleado() {
+    const id = document.getElementById('emp-id').value;
+    if (!id) return;
+    if (confirm("¿Seguro que desea eliminar este empleado?")) {
+        const res = await fetch(`api.php?action=delete_employee&id=${id}`);
+        const result = await res.json();
+        if (result.success) {
+            alert("Empleado eliminado");
+            cargarEmpleados();
+            nuevoEmpleado();
+        } else {
+            alert(result.error);
+        }
+    }
+}
+
+// Hook into modal opening
+const originalMostrarModal = mostrarModal;
+mostrarModal = function(id) {
+    originalMostrarModal(id);
+    if (id === 'modal-empleados') cargarEmpleados();
+};
