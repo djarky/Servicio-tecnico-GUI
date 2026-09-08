@@ -1,0 +1,30 @@
+ST-PRO - Sistema de Gestión de Servicio Técnico
+================================================
+Copyright (c) 2024 - ST-PRO. Todos los derechos reservados.
+
+ACUERDO DE LICENCIA DE USUARIO FINAL (EULA)
+
+Al instalar este software usted acepta los siguientes términos:
+
+1. USO PERMITIDO
+   Este software puede instalarse y usarse en una computadora personal
+   o de negocio para gestionar órdenes de servicio técnico.
+
+2. RESTRICCIONES
+   No está permitida la redistribución del software sin autorización
+   expresa del desarrollador.
+
+3. PRIVACIDAD DE DATOS
+   Todos los datos ingresados (clientes, órdenes, etc.) se almacenan
+   localmente en esta computadora. El software no envía datos a internet.
+
+4. SIN GARANTÍA
+   El software se proporciona "tal como está", sin garantía de ningún
+   tipo. El proveedor no se responsabiliza por pérdidas de datos.
+   SE RECOMIENDA REALIZAR COPIAS DE SEGURIDAD PERIÓDICAS.
+
+5. SOPORTE
+   Para soporte técnico, contacte al proveedor del sistema.
+
+Al hacer clic en "Acepto los términos del acuerdo", usted confirma que
+ha leído y acepta estos términos de uso.
