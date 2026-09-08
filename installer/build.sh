@@ -70,16 +70,25 @@ if [ ! -f "res/composer.phar" ]; then
     curl -s -L -o "res/composer.phar" "https://getcomposer.org/composer.phar"
 fi
 
-# ── Asegurar librerias vendor preempaquetadas ────────────────
-if [ ! -f "res/vendor/autoload.php" ]; then
-    echo "[VEND] Preparando dependencias vendor para empaquetado..."
-    if [ -f "../vendor/autoload.php" ]; then
-        cp -r ../vendor res/vendor
-    else
-        php res/composer.phar install -d .. --no-dev --optimize-autoloader --no-interaction
-        cp -r ../vendor res/vendor
-    fi
+# ── Asegurar librerias vendor preempaquetadas (Staging temporal) ────
+echo "[VEND] Preparando dependencias PHP en staging temporal..."
+rm -rf res/vendor
+
+if [ -f "../vendor/autoload.php" ]; then
+    cp -r ../vendor res/vendor
+else
+    echo "       Descargando dependencias de Composer en la raíz..."
+    php res/composer.phar install -d .. --no-dev --optimize-autoloader --no-interaction
+    cp -r ../vendor res/vendor
 fi
+
+# Garantizar limpieza de res/vendor al salir (incluso si falla o se interrumpe)
+cleanup() {
+    echo ""
+    echo "[CLEAN] Limpiando dependencias temporales de staging (res/vendor)..."
+    rm -rf res/vendor
+}
+trap cleanup EXIT INT TERM
 
 # ── Verificar archivos requeridos ───────────────────────────
 echo ""
