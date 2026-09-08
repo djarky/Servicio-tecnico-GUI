@@ -66,4 +66,13 @@ if "!MODIFIED!"=="1" (
     echo [OK] PATH ya contenia las rutas de XAMPP.
 )
 
+:: 5. Habilitar extensiones criticas en C:\xampp\php\php.ini (curl, openssl, zip, pdo_mysql, mysqli, mbstring)
+if exist "%XAMPP_PHP%\php.ini" (
+    if exist "%XAMPP_PHP%\php.exe" (
+        echo [PHP] Configurando extensiones en php.ini...
+        "%XAMPP_PHP%\php.exe" -r "$f='C:/xampp/php/php.ini'; if(file_exists($f)){$c=file_get_contents($f); $exts=['curl','openssl','zip','pdo_mysql','mysqli','mbstring','fileinfo']; foreach($exts as $e){ $c=preg_replace('/^[;]\s*(extension\s*=\s*'.$e.')/mi', '$1', $c); } file_put_contents($f, $c);}" >nul 2>&1
+        echo [OK] Extensiones de PHP verificadas y activadas.
+    )
+)
+
 exit /b 0

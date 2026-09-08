@@ -161,31 +161,53 @@ Section "ST-PRO Servicio Tecnico" SEC01
   DetailPrint "           PATH verificado y configurado (PHP + MySQL)."
 
   ; ═══════════════════════════════════════════════════════
-  ; PASO 3 — Verificar / Instalar Composer
+  ; PASO 3 — Configurar Composer
   ; ═══════════════════════════════════════════════════════
-  DetailPrint "[ 3 / 7 ]  Verificando Composer..."
+  DetailPrint "[ 3 / 7 ]  Configurando Composer..."
 
-  IfFileExists "C:\ProgramData\ComposerSetup\bin\composer.phar" composer_ok composer_missing
+  ; Extraer composer.phar en TEMP y en INSTDIR
+  SetOutPath "$TEMP\stpro_setup"
+  File "res\composer.phar"
 
-  composer_missing:
-    DetailPrint "           Descargando Composer..."
-    nsExec::ExecToStack 'cmd /c ""$TEMP\stpro_setup\download_file.bat" "${COMPOSER_URL}" "$TEMP\stpro_setup\Composer-Setup.exe""'
+  SetOutPath "$INSTDIR"
+  File "res\composer.phar"
+
+  ; Si existe C:\xampp\php\, copiar composer.phar y crear wrapper composer.bat
+  IfFileExists "C:\xampp\php\*.*" 0 +6
+    CopyFiles "$TEMP\stpro_setup\composer.phar" "C:\xampp\php\composer.phar"
+    FileOpen $0 "C:\xampp\php\composer.bat" w
+    FileWrite $0 "@echo off$\r$\n"
+    FileWrite $0 '"C:\xampp\php\php.exe" -d memory_limit=512M "%~dp0composer.phar" %*$\r$\n'
+    FileClose $0
+
+  ; Crear composer.bat en la carpeta de instalacion
+  FileOpen $0 "$INSTDIR\composer.bat" w
+  FileWrite $0 "@echo off$\r$\n"
+  FileWrite $0 '"C:\xampp\php\php.exe" -d memory_limit=512M "%~dp0composer.phar" %*$\r$\n'
+  FileClose $0
+
+  ; Probar que Composer funcione con PHP
+  nsExec::ExecToStack 'cmd /c ""C:\xampp\php\php.exe" "$INSTDIR\composer.phar" --version"'
+  Pop $R0
+  Pop $1
+
+  ${If} $R0 != 0
+    ; Intentar descargar version fresca de composer.phar
+    DetailPrint "           Descargando composer.phar desde getcomposer.org..."
+    nsExec::ExecToStack 'cmd /c ""$TEMP\stpro_setup\download_file.bat" "https://getcomposer.org/composer.phar" "$INSTDIR\composer.phar" 1000000"'
+    Pop $R0
+    Pop $1
+
+    nsExec::ExecToStack 'cmd /c ""C:\xampp\php\php.exe" "$INSTDIR\composer.phar" --version"'
     Pop $R0
     Pop $1
     ${If} $R0 != 0
-      DetailPrint "           Aviso: No se pudo descargar Composer automáticamente."
-      DetailPrint "           La generacion de PDFs requerira instalar Composer manualmente."
-      Goto composer_done
+      MessageBox MB_OK|MB_ICONSTOP "Error: Composer no pudo ejecutarse con PHP (código: $R0).$\r$\n$\r$\nAsegúrese de que PHP de XAMPP funcione y tenga la extensión OpenSSL habilitada.$\r$\nLa instalación se interrumpirá."
+      Abort
     ${EndIf}
-    DetailPrint "           Instalando Composer (con PHP de XAMPP)..."
-    ExecWait '"$TEMP\stpro_setup\Composer-Setup.exe" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /PHP=C:\xampp\php\php.exe' $R0
-    DetailPrint "           Composer instalado."
-    Goto composer_done
+  ${EndIf}
 
-  composer_ok:
-    DetailPrint "           Composer ya instalado."
-
-  composer_done:
+  DetailPrint "           Composer verificado y listo."
 
   ; ═══════════════════════════════════════════════════════
   ; PASO 4 — Copiar archivos de ST-PRO a $INSTDIR
@@ -207,6 +229,10 @@ Section "ST-PRO Servicio Tecnico" SEC01
   File "..\composer.json"
   File "..\composer.lock"
 
+  ; Librerías vendor preempaquetadas (evita fallos de red/SSL/memory-limit durante el setup)
+  SetOutPath "$INSTDIR\vendor"
+  File /r "res\vendor\*"
+
   ; Directorios de imagenes y uploads
   SetOutPath "$INSTDIR\imagenes"
   File /r "..\imagenes\*"
@@ -226,25 +252,44 @@ Section "ST-PRO Servicio Tecnico" SEC01
   DetailPrint "           Archivos copiados a $INSTDIR"
 
   ; ═══════════════════════════════════════════════════════
-  ; PASO 5 — Instalar dependencias PHP (dompdf)
+  ; PASO 5 — Verificar e Instalar Dependencias PHP
   ; ═══════════════════════════════════════════════════════
-  DetailPrint "[ 5 / 7 ]  Instalando dependencias PHP (dompdf para PDF)..."
-  CopyFiles "$TEMP\stpro_setup\install_deps.bat" "$INSTDIR\install_deps.bat"
-  nsExec::ExecToStack 'cmd /c ""$INSTDIR\install_deps.bat""'
-  Pop $R0
-  Pop $1
-  Delete "$INSTDIR\install_deps.bat"
-  DetailPrint "           Dependencias PHP procesadas."
+  DetailPrint "[ 5 / 7 ]  Verificando dependencias PHP (vendor/autoload.php)..."
+
+  IfFileExists "$INSTDIR\vendor\autoload.php" deps_ok deps_install
+
+  deps_install:
+    DetailPrint "           Generando dependencias adicionales con Composer..."
+    CopyFiles "$TEMP\stpro_setup\install_deps.bat" "$INSTDIR\install_deps.bat"
+    nsExec::ExecToStack 'cmd /c ""$INSTDIR\install_deps.bat""'
+    Pop $R0
+    Pop $1
+    Delete "$INSTDIR\install_deps.bat"
+
+    ${If} $R0 != 0
+      ${Unless} ${FileExists} "$INSTDIR\vendor\autoload.php"
+        MessageBox MB_OK|MB_ICONSTOP "Error al instalar dependencias de Composer (código: $R0).$\r$\n$\r$\nDetalle del error:$\r$\n$1$\r$\n$\r$\nVerifique su conexión a Internet o el servicio de PHP.$\r$\nLa instalación se interrumpirá."
+        Abort
+      ${EndUnless}
+    ${EndIf}
+
+  deps_ok:
+    DetailPrint "           Dependencias de Composer verificadas y listas (vendor/ OK)."
 
   ; ═══════════════════════════════════════════════════════
-  ; PASO 6 — Iniciar MySQL y Deteccion/Reparacion de Base de Datos
+  ; PASO 6 — Iniciar MySQL y Configurar Base de Datos
   ; ═══════════════════════════════════════════════════════
-  DetailPrint "[ 6 / 7 ]  Configurando base de datos MySQL..."
+  DetailPrint "[ 6 / 7 ]  Iniciando MySQL y configurando base de datos..."
 
-  ; setup_db.bat arranca MySQL en segundo plano y espera confirmacion antes de continuar
+  ; setup_db.bat inicia MySQL y verifica conexion
   nsExec::ExecToStack 'cmd /c ""$TEMP\stpro_setup\setup_db.bat" "$INSTDIR" check"'
   Pop $R0
   Pop $1
+
+  ${If} $R0 == 1
+    MessageBox MB_OK|MB_ICONSTOP "Error: No se pudo conectar al servidor MySQL de XAMPP (puerto 3306).$\r$\n$\r$\nDetalle:$\r$\n$1$\r$\n$\r$\nAsegúrese de que el servicio MySQL pueda iniciar en su PC y que el puerto 3306 no esté bloqueado.$\r$\n$\r$\nLa instalación se interrumpirá."
+    Abort
+  ${EndIf}
 
   ${If} $R0 == 0
     ; La base de datos YA EXISTE: Consultar al usuario
@@ -257,14 +302,14 @@ Section "ST-PRO Servicio Tecnico" SEC01
       nsExec::ExecToStack 'cmd /c ""$TEMP\stpro_setup\setup_db.bat" "$INSTDIR" repair"'
       Pop $R0
       Pop $1
-      Goto db_finished
+      Goto db_eval_result
 
     db_do_reinstall:
       DetailPrint "           Reinstalando base de datos desde cero..."
       nsExec::ExecToStack 'cmd /c ""$TEMP\stpro_setup\setup_db.bat" "$INSTDIR" reinstall"'
       Pop $R0
       Pop $1
-      Goto db_finished
+      Goto db_eval_result
 
   ${Else}
     ; Base de datos nueva: instalacion limpia
@@ -274,12 +319,14 @@ Section "ST-PRO Servicio Tecnico" SEC01
     Pop $1
   ${EndIf}
 
-  db_finished:
-  ${If} $R0 == 0
-    DetailPrint "           Base de datos configurada correctamente con usuario st_user."
-  ${Else}
-    DetailPrint "           Aviso DB: Asegurese de que MySQL este iniciado antes de usar la web."
+  db_eval_result:
+  ${If} $R0 != 0
+    DetailPrint "           Error en MySQL: $1"
+    MessageBox MB_OK|MB_ICONSTOP "Error al configurar la base de datos MySQL (código: $R0).$\r$\n$\r$\nDetalle del error:$\r$\n$1$\r$\n$\r$\nNo se pudo crear la base de datos 'servicio_tecnico' o el usuario 'st_user'.$\r$\nLa instalación se interrumpirá."
+    Abort
   ${EndIf}
+
+  DetailPrint "           Base de datos 'servicio_tecnico' y usuario 'st_user' listos."
 
   ; ═══════════════════════════════════════════════════════
   ; PASO 7 — Acceso directo en el Escritorio (apunta a launch.bat)

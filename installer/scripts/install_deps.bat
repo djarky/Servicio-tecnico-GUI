@@ -1,41 +1,68 @@
 @echo off
-:: install_deps.bat
-:: Instala las dependencias de Composer (dompdf, etc.) para ST-PRO.
-:: Se ejecuta desde el directorio de instalacion de ST-PRO.
+:: install_deps.bat - Instala las dependencias de Composer para ST-PRO (dompdf, etc.)
+:: Retorna: 0 = Exito, 1 = Falta PHP, 2 = Fallo en Composer
 
-setlocal
+setlocal enabledelayedexpansion
+
+set "INSTALL_DIR=%~dp0"
+if "%INSTALL_DIR:~-1%"=="\" set "INSTALL_DIR=%INSTALL_DIR:~0,-1%"
 
 set "PHP=C:\xampp\php\php.exe"
-set "COMPOSER_PHAR=C:\ProgramData\ComposerSetup\bin\composer.phar"
-set "COMPOSER_BAT=C:\ProgramData\ComposerSetup\bin\composer.bat"
-set "INSTALL_DIR=%~dp0"
 
 cd /d "%INSTALL_DIR%"
 
-echo [COMP] Instalando dependencias PHP en: %INSTALL_DIR%
+echo [COMPOSER] Verificando PHP y Composer en: %INSTALL_DIR%
 
-:: Intentar con composer.bat (instalacion global de Composer)
-if exist "%COMPOSER_BAT%" (
-    call "%COMPOSER_BAT%" install --no-dev --optimize-autoloader --no-interaction 2>&1
-    goto done
+:: Si vendor/autoload.php ya existe, dependencias ya estan completas
+if exist "%INSTALL_DIR%\vendor\autoload.php" (
+    echo [OK] Dependencias ya instaladas en vendor/autoload.php.
+    exit /b 0
 )
 
-:: Intentar con composer.phar directamente
-if exist "%COMPOSER_PHAR%" (
-    "%PHP%" "%COMPOSER_PHAR%" install --no-dev --optimize-autoloader --no-interaction 2>&1
-    goto done
+if not exist "%PHP%" (
+    where php >nul 2>&1
+    if !errorlevel! equ 0 (
+        set "PHP=php"
+    ) else (
+        echo [ERROR] No se encontro php.exe para ejecutar Composer.
+        exit /b 1
+    )
 )
 
-:: Ultimo recurso: buscar composer en PATH
+:: 1. Intentar con composer.phar en la carpeta de instalacion
+if exist "%INSTALL_DIR%\composer.phar" (
+    echo [COMPOSER] Ejecutando composer.phar install...
+    "%PHP%" -d memory_limit=512M "%INSTALL_DIR%\composer.phar" install --no-dev --optimize-autoloader --no-interaction
+    if !errorlevel! equ 0 goto check_vendor
+
+    echo [COMPOSER] Probando composer.phar update...
+    "%PHP%" -d memory_limit=512M "%INSTALL_DIR%\composer.phar" update --no-dev --optimize-autoloader --no-interaction
+    if !errorlevel! equ 0 goto check_vendor
+)
+
+:: 2. Intentar con composer.phar en C:\xampp\php\
+if exist "C:\xampp\php\composer.phar" (
+    echo [COMPOSER] Ejecutando C:\xampp\php\composer.phar install...
+    "%PHP%" -d memory_limit=512M "C:\xampp\php\composer.phar" install --no-dev --optimize-autoloader --no-interaction
+    if !errorlevel! equ 0 goto check_vendor
+)
+
+:: 3. Intentar con comando composer global
 where composer >nul 2>&1
-if %errorlevel% equ 0 (
-    composer install --no-dev --optimize-autoloader --no-interaction 2>&1
-    goto done
+if !errorlevel! equ 0 (
+    echo [COMPOSER] Ejecutando composer global...
+    call composer install --no-dev --optimize-autoloader --no-interaction
+    if !errorlevel! equ 0 goto check_vendor
+
+    call composer update --no-dev --optimize-autoloader --no-interaction
+    if !errorlevel! equ 0 goto check_vendor
 )
 
-echo [WARN] Composer no encontrado. Las dependencias PHP (dompdf) no se instalaron.
-echo [WARN] La generacion de PDFs puede no funcionar.
+:check_vendor
+if exist "%INSTALL_DIR%\vendor\autoload.php" (
+    echo [OK] Dependencias instaladas correctamente (vendor/autoload.php existe).
+    exit /b 0
+)
 
-:done
-echo [COMP] Proceso de dependencias completado.
-exit /b 0
+echo [ERROR] No se pudo generar la carpeta vendor/. Fallo en la instalacion de dependencias.
+exit /b 2

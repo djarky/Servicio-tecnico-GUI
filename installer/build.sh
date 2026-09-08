@@ -64,6 +64,23 @@ else
     echo "       sudo apt install imagemagick"
 fi
 
+# ── Asegurar composer.phar empaquetado ───────────────────────
+if [ ! -f "res/composer.phar" ]; then
+    echo "[COMP] Descargando composer.phar para empaquetarlo en el instalador..."
+    curl -s -L -o "res/composer.phar" "https://getcomposer.org/composer.phar"
+fi
+
+# ── Asegurar librerias vendor preempaquetadas ────────────────
+if [ ! -f "res/vendor/autoload.php" ]; then
+    echo "[VEND] Preparando dependencias vendor para empaquetado..."
+    if [ -f "../vendor/autoload.php" ]; then
+        cp -r ../vendor res/vendor
+    else
+        php res/composer.phar install -d .. --no-dev --optimize-autoloader --no-interaction
+        cp -r ../vendor res/vendor
+    fi
+fi
+
 # ── Verificar archivos requeridos ───────────────────────────
 echo ""
 echo "[CHECK] Verificando archivos necesarios..."
@@ -80,6 +97,8 @@ REQUIRED_FILES=(
     "scripts/install_deps.bat"
     "res/launch.bat"
     "res/silent_launch.vbs"
+    "res/composer.phar"
+    "res/vendor/autoload.php"
     "../api.php"
     "../schema.sql"
     "../composer.json"
