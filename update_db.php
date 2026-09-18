@@ -28,6 +28,17 @@ try {
         $db->exec("ALTER TABLE ordenes ADD CONSTRAINT fk_actualizador FOREIGN KEY (id_usuario_actualizador) REFERENCES usuarios(id) ON DELETE SET NULL");
     }
 
+    // 3. Agregar columnas de tipo_bloqueo y patron
+    echo "Agregando columnas de tipo_bloqueo y patron...\n";
+    $checkBloqueo = $db->query("SHOW COLUMNS FROM ordenes LIKE 'tipo_bloqueo'");
+    if (!$checkBloqueo->fetch()) {
+        $db->exec("ALTER TABLE ordenes ADD COLUMN tipo_bloqueo VARCHAR(20) DEFAULT 'clave' AFTER clave");
+    }
+    $checkPatron = $db->query("SHOW COLUMNS FROM ordenes LIKE 'patron'");
+    if (!$checkPatron->fetch()) {
+        $db->exec("ALTER TABLE ordenes ADD COLUMN patron VARCHAR(100) NULL AFTER tipo_bloqueo");
+    }
+
     echo "¡Base de datos actualizada con éxito!\n";
 
 } catch (Exception $e) {

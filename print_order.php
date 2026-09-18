@@ -55,6 +55,59 @@ if ($mode === 'ticket') {
 }
 
 $condiciones = $config['condiciones_servicio'] ?? '';
+
+function renderPatternSvg($patternStr) {
+    if (empty($patternStr)) return '';
+    $ids = array_map('intval', explode(',', $patternStr));
+    $ids = array_filter($ids, function($n) { return $n >= 1 && $n <= 9; });
+    if (empty($ids)) return '';
+
+    // Coordenadas 3x3 para caja de 100x100
+    $points = [
+        1 => ['x' => 18, 'y' => 18],
+        2 => ['x' => 50, 'y' => 18],
+        3 => ['x' => 82, 'y' => 18],
+        4 => ['x' => 18, 'y' => 50],
+        5 => ['x' => 50, 'y' => 50],
+        6 => ['x' => 82, 'y' => 50],
+        7 => ['x' => 18, 'y' => 82],
+        8 => ['x' => 50, 'y' => 82],
+        9 => ['x' => 82, 'y' => 82],
+    ];
+
+    $svg = '<svg width="90" height="90" viewBox="0 0 100 100" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; display: block; margin-top: 5px;">';
+    
+    // Trazos entre puntos consecutivos
+    $prev = null;
+    foreach ($ids as $id) {
+        if ($prev !== null && isset($points[$prev]) && isset($points[$id])) {
+            $p1 = $points[$prev];
+            $p2 = $points[$id];
+            $svg .= sprintf('<line x1="%d" y1="%d" x2="%d" y2="%d" stroke="#2563eb" stroke-width="3.5" stroke-linecap="round" />',
+                $p1['x'], $p1['y'], $p2['x'], $p2['y']
+            );
+        }
+        $prev = $id;
+    }
+
+    // Dibujar los 9 puntos
+    for ($i = 1; $i <= 9; $i++) {
+        $pt = $points[$i];
+        $orderIdx = array_search($i, $ids);
+        if ($orderIdx !== false) {
+            $step = $orderIdx + 1;
+            $svg .= sprintf('<circle cx="%d" cy="%d" r="9" fill="#2563eb" />', $pt['x'], $pt['y']);
+            $svg .= sprintf('<text x="%d" y="%d" fill="#ffffff" font-size="9" font-weight="bold" font-family="sans-serif" text-anchor="middle" dominant-baseline="central">%d</text>',
+                $pt['x'], $pt['y'], $step
+            );
+        } else {
+            $svg .= sprintf('<circle cx="%d" cy="%d" r="3.5" fill="#94a3b8" />', $pt['x'], $pt['y']);
+        }
+    }
+
+    $svg .= '</svg>';
+    return $svg;
+}
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -153,6 +206,24 @@ $condiciones = $config['condiciones_servicio'] ?? '';
                 <div class="data-row"><span class="label">Marca:</span> <?= $order['marca'] ?></div>
                 <div class="data-row"><span class="label">Modelo:</span> <?= $order['modelo'] ?></div>
                 <div class="data-row"><span class="label">Serial:</span> <?= $order['serial'] ?></div>
+                <?php 
+                $tipoBloqueo = $order['tipo_bloqueo'] ?? (!empty($order['patron']) ? 'patron' : (!empty($order['clave']) ? 'clave' : 'ninguno'));
+                ?>
+                <div class="data-row">
+                    <span class="label">Seguridad:</span> 
+                    <?php if ($tipoBloqueo === 'patron' && !empty($order['patron'])): ?>
+                        <strong>Patrón Android</strong>
+                        <?= renderPatternSvg($order['patron']) ?>
+                    <?php elseif ($tipoBloqueo === 'clave' && !empty($order['clave'])): ?>
+                        <strong>Clave: <?= htmlspecialchars($order['clave']) ?></strong>
+                    <?php elseif ($tipoBloqueo === 'huella'): ?>
+                        <span>Huella Dactilar</span>
+                    <?php elseif ($tipoBloqueo === 'facial'): ?>
+                        <span>Reconocimiento Facial</span>
+                    <?php else: ?>
+                        <span>Sin Bloqueo</span>
+                    <?php endif; ?>
+                </div>
             </div>
         </div>
 

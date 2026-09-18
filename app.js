@@ -14,6 +14,7 @@ function initApp() {
     fillFontSelectors();
     cargarConfig();
     enforcePermissions();
+    initSecurityLock();
 }
 
 let appConfig = { moneda_simbolo: '$' };
@@ -316,16 +317,377 @@ async function logout() {
     window.location.reload();
 }
 
+// --- Android Pattern Lock Manager & Security Type Handler ---
+
+const PatternLock = {
+    canvas: null,
+    ctx: null,
+    points: [
+        { id: 1, x: 35, y: 35 },
+        { id: 2, x: 90, y: 35 },
+        { id: 3, x: 145, y: 35 },
+        { id: 4, x: 35, y: 90 },
+        { id: 5, x: 90, y: 90 },
+        { id: 6, x: 145, y: 90 },
+        { id: 7, x: 35, y: 145 },
+        { id: 8, x: 90, y: 145 },
+        { id: 9, x: 145, y: 145 }
+    ],
+    // Midpoints between nodes when skipping
+    midpoints: {
+        '1-3': 2, '3-1': 2,
+        '4-6': 5, '6-4': 5,
+        '7-9': 8, '9-7': 8,
+        '1-7': 4, '7-1': 4,
+        '2-8': 5, '8-2': 5,
+        '3-9': 6, '9-3': 6,
+        '1-9': 5, '9-1': 5,
+        '3-7': 5, '7-3': 5
+    },
+    currentPattern: [], // Array of numbers e.g. [1, 2, 5, 8, 9]
+    isDrawing: false,
+    cursorPos: null,
+    isAnimating: false,
+    animTimeouts: [],
+
+    init() {
+        this.canvas = document.getElementById('pattern-canvas');
+        if (!this.canvas) return;
+        this.ctx = this.canvas.getContext('2d');
+
+        // Mouse events
+        this.canvas.addEventListener('mousedown', (e) => this.onStart(e));
+        window.addEventListener('mousemove', (e) => this.onMove(e));
+        window.addEventListener('mouseup', (e) => this.onEnd(e));
+
+        // Touch events
+        this.canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            this.onStart(e);
+        }, { passive: false });
+        window.addEventListener('touchmove', (e) => {
+            if (this.isDrawing) {
+                this.onMove(e);
+            }
+        }, { passive: false });
+        window.addEventListener('touchend', (e) => {
+            if (this.isDrawing) {
+                this.onEnd(e);
+            }
+        });
+
+        this.render();
+    },
+
+    isReadOnly() {
+        const select = document.getElementById('f-tipo-bloqueo');
+        return select && select.disabled;
+    },
+
+    getCoords(e) {
+        if (!this.canvas) return { x: 0, y: 0 };
+        const rect = this.canvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        const scaleX = this.canvas.width / rect.width;
+        const scaleY = this.canvas.height / rect.height;
+        return {
+            x: (clientX - rect.left) * scaleX,
+            y: (clientY - rect.top) * scaleY
+        };
+    },
+
+    findPointNear(coords, radius = 22) {
+        for (const pt of this.points) {
+            const dx = pt.x - coords.x;
+            const dy = pt.y - coords.y;
+            if (Math.hypot(dx, dy) <= radius) {
+                return pt;
+            }
+        }
+        return null;
+    },
+
+    onStart(e) {
+        if (this.isAnimating || this.isReadOnly()) return;
+        const coords = this.getCoords(e);
+        const pt = this.findPointNear(coords);
+        if (pt) {
+            this.isDrawing = true;
+            this.currentPattern = [pt.id];
+            this.cursorPos = coords;
+            this.updateStatus();
+            this.render();
+        }
+    },
+
+    onMove(e) {
+        if (!this.isDrawing || this.isAnimating || this.isReadOnly()) return;
+        const coords = this.getCoords(e);
+        this.cursorPos = coords;
+        const pt = this.findPointNear(coords);
+        if (pt && !this.currentPattern.includes(pt.id)) {
+            const lastId = this.currentPattern[this.currentPattern.length - 1];
+            const midKey = `${lastId}-${pt.id}`;
+            const midId = this.midpoints[midKey];
+            if (midId && !this.currentPattern.includes(midId)) {
+                this.currentPattern.push(midId);
+            }
+            this.currentPattern.push(pt.id);
+            this.updateStatus();
+        }
+        this.render();
+    },
+
+    onEnd(e) {
+        if (!this.isDrawing || this.isAnimating) return;
+        this.isDrawing = false;
+        this.cursorPos = null;
+        this.saveToInput();
+        this.render();
+    },
+
+    saveToInput() {
+        const input = document.getElementById('f-patron');
+        if (input) {
+            input.value = this.currentPattern.join(',');
+        }
+        this.updateStatus();
+    },
+
+    updateStatus() {
+        const statusElem = document.getElementById('patron-status');
+        const countElem = document.getElementById('patron-count');
+        if (!statusElem || !countElem) return;
+
+        if (this.currentPattern.length === 0) {
+            statusElem.innerText = 'Dibuja el patrón:';
+            countElem.innerText = '';
+        } else {
+            statusElem.innerText = 'Patrón guardado:';
+            countElem.innerText = `${this.currentPattern.length} puntos`;
+        }
+    },
+
+    setPattern(patternStr, animate = false) {
+        this.clearAnimTimeouts();
+        if (!patternStr) {
+            this.currentPattern = [];
+            this.saveToInput();
+            this.render();
+            return;
+        }
+
+        const ids = patternStr.toString().split(',').map(n => parseInt(n.trim(), 10)).filter(n => n >= 1 && n <= 9);
+        if (animate && ids.length > 0) {
+            this.animate(ids);
+        } else {
+            this.currentPattern = ids;
+            this.saveToInput();
+            this.render();
+        }
+    },
+
+    clearAnimTimeouts() {
+        this.animTimeouts.forEach(t => clearTimeout(t));
+        this.animTimeouts = [];
+        this.isAnimating = false;
+    },
+
+    animate(sequence) {
+        if (!sequence || sequence.length === 0) return;
+        this.clearAnimTimeouts();
+        this.isAnimating = true;
+        this.currentPattern = [];
+        this.cursorPos = null;
+        this.render();
+
+        const statusElem = document.getElementById('patron-status');
+        if (statusElem) statusElem.innerText = 'Reproduciendo...';
+
+        sequence.forEach((ptId, idx) => {
+            const timeout = setTimeout(() => {
+                this.currentPattern.push(ptId);
+                this.render();
+
+                if (idx === sequence.length - 1) {
+                    this.isAnimating = false;
+                    this.saveToInput();
+                    if (statusElem) statusElem.innerText = 'Patrón completado:';
+                }
+            }, (idx + 1) * 280);
+            this.animTimeouts.push(timeout);
+        });
+    },
+
+    render() {
+        if (!this.ctx) return;
+        const ctx = this.ctx;
+        const w = this.canvas.width;
+        const h = this.canvas.height;
+
+        // Canvas Background
+        ctx.clearRect(0, 0, w, h);
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(0, 0, w, h);
+
+        // Lines connecting points
+        if (this.currentPattern.length > 0) {
+            ctx.beginPath();
+            const firstPt = this.points.find(p => p.id === this.currentPattern[0]);
+            if (firstPt) {
+                ctx.moveTo(firstPt.x, firstPt.y);
+                for (let i = 1; i < this.currentPattern.length; i++) {
+                    const pt = this.points.find(p => p.id === this.currentPattern[i]);
+                    if (pt) ctx.lineTo(pt.x, pt.y);
+                }
+                if (this.isDrawing && this.cursorPos) {
+                    ctx.lineTo(this.cursorPos.x, this.cursorPos.y);
+                }
+            }
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = '#38bdf8';
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = '#0284c7';
+            ctx.stroke();
+            ctx.shadowBlur = 0; // Reset
+        }
+
+        // Draw the 9 Points
+        for (const pt of this.points) {
+            const orderIndex = this.currentPattern.indexOf(pt.id);
+            const isVisited = orderIndex !== -1;
+
+            if (isVisited) {
+                // Outer glow halo
+                ctx.beginPath();
+                ctx.arc(pt.x, pt.y, 18, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(14, 165, 233, 0.2)';
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(56, 189, 248, 0.6)';
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+
+                // Main node circle
+                ctx.beginPath();
+                ctx.arc(pt.x, pt.y, 13, 0, Math.PI * 2);
+                ctx.fillStyle = '#0284c7';
+                ctx.shadowBlur = 6;
+                ctx.shadowColor = '#38bdf8';
+                ctx.fill();
+                ctx.shadowBlur = 0;
+
+                // Number inside circle (1, 2, 3...)
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 11px "Segoe UI", Arial, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText((orderIndex + 1).toString(), pt.x, pt.y + 0.5);
+            } else {
+                // Inactive point
+                // Outer subtle ring
+                ctx.beginPath();
+                ctx.arc(pt.x, pt.y, 13, 0, Math.PI * 2);
+                ctx.strokeStyle = '#334155';
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+
+                // Inner dot
+                ctx.beginPath();
+                ctx.arc(pt.x, pt.y, 4.5, 0, Math.PI * 2);
+                ctx.fillStyle = '#64748b';
+                ctx.fill();
+            }
+        }
+    }
+};
+
+function initSecurityLock() {
+    PatternLock.init();
+    const select = document.getElementById('f-tipo-bloqueo');
+    if (select) {
+        cambiarTipoBloqueo(select.value || 'clave');
+    }
+}
+
+function cambiarTipoBloqueo(tipo) {
+    const blocks = ['clave', 'patron', 'huella', 'facial', 'ninguno'];
+    blocks.forEach(b => {
+        const el = document.getElementById('sec-block-' + b);
+        if (el) el.style.display = (b === tipo) ? 'block' : 'none';
+    });
+
+    if (tipo === 'patron') {
+        setTimeout(() => {
+            if (!PatternLock.canvas) {
+                PatternLock.init();
+            } else {
+                PatternLock.render();
+            }
+            const saved = document.getElementById('f-patron') ? document.getElementById('f-patron').value : '';
+            if (saved && PatternLock.currentPattern.length === 0) {
+                PatternLock.setPattern(saved, false);
+            }
+        }, 50);
+    }
+}
+
+function limpiarPatron(clearInput = true) {
+    PatternLock.clearAnimTimeouts();
+    PatternLock.currentPattern = [];
+    PatternLock.cursorPos = null;
+    if (clearInput && document.getElementById('f-patron')) {
+        document.getElementById('f-patron').value = '';
+    }
+    PatternLock.updateStatus();
+    PatternLock.render();
+}
+
+function reproducirAnimacionPatron() {
+    const input = document.getElementById('f-patron');
+    const patternStr = input ? input.value : '';
+    if (!patternStr) {
+        alert("Aún no se ha dibujado ningún patrón.");
+        return;
+    }
+    PatternLock.setPattern(patternStr, true);
+}
+
+function toggleVerClave() {
+    const input = document.getElementById('f-clave');
+    const icon = document.getElementById('btn-ver-clave-icon');
+    if (!input || !icon) return;
+
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.className = 'fas fa-eye-slash';
+    } else {
+        input.type = 'password';
+        icon.className = 'fas fa-eye';
+    }
+}
+
 // --- Order Logic ---
 
 function nuevaOrden() {
     // Limpiar campos
-    const ids = ['f-id-orden', 'f-documento', 'f-telefono', 'f-nombre', 'f-direccion', 
+    const ids = ['f-id-orden', 'f-id-cliente', 'f-documento', 'f-telefono', 'f-nombre', 'f-direccion', 
                  'f-marca', 'f-modelo', 'f-serial', 'f-tipo-otro', 'f-falla', 
                  'f-observaciones', 'f-reparacion', 'f-accesorios', 'f-clave'];
     ids.forEach(id => {
         if(document.getElementById(id)) document.getElementById(id).value = '';
     });
+
+    if (document.getElementById('f-tipo-bloqueo')) {
+        document.getElementById('f-tipo-bloqueo').value = 'clave';
+        cambiarTipoBloqueo('clave');
+    }
+    if (document.getElementById('f-patron')) {
+        document.getElementById('f-patron').value = '';
+    }
+    limpiarPatron(false);
     
     document.getElementById('f-presupuesto').value = '0.00';
     document.getElementById('f-abono').value = '0.00';
@@ -351,7 +713,7 @@ async function guardarOrden() {
 
     const formData = {
         id_orden: document.getElementById('f-id-orden').value,
-        id_cliente: '', // Simplified, if we had it
+        id_cliente: document.getElementById('f-id-cliente') ? document.getElementById('f-id-cliente').value : '',
         documento: document.getElementById('f-documento').value,
         nombre: document.getElementById('f-nombre').value,
         telefono: document.getElementById('f-telefono').value,
@@ -361,6 +723,8 @@ async function guardarOrden() {
         modelo: document.getElementById('f-modelo').value,
         serial: document.getElementById('f-serial').value,
         clave: document.getElementById('f-clave').value,
+        tipo_bloqueo: document.getElementById('f-tipo-bloqueo') ? document.getElementById('f-tipo-bloqueo').value : 'clave',
+        patron: document.getElementById('f-patron') ? document.getElementById('f-patron').value : '',
         accesorios: document.getElementById('f-accesorios').value,
         falla: document.getElementById('f-falla').value,
         observaciones: document.getElementById('f-observaciones').value,
@@ -463,6 +827,29 @@ function setupValidations() {
             const validPattern = /[^0-9\s+\-()]/g;
             if (validPattern.test(e.target.value)) {
                 e.target.value = e.target.value.replace(validPattern, '');
+            }
+        });
+    }
+
+    // Auto-completar cliente al escribir documento existente
+    const docInput = document.getElementById('f-documento');
+    if (docInput) {
+        docInput.addEventListener('blur', async () => {
+            const doc = docInput.value.trim();
+            if (doc.length >= 3 && !document.getElementById('f-id-orden').value) {
+                try {
+                    const res = await fetch(`api.php?action=get_customers&q=${encodeURIComponent(doc)}`);
+                    const customers = await res.json();
+                    const found = customers.find(c => c.documento === doc);
+                    if (found) {
+                        if (document.getElementById('f-id-cliente')) document.getElementById('f-id-cliente').value = found.id_cliente || '';
+                        if (document.getElementById('f-nombre') && !document.getElementById('f-nombre').value) document.getElementById('f-nombre').value = found.nombre || '';
+                        if (document.getElementById('f-telefono') && !document.getElementById('f-telefono').value) document.getElementById('f-telefono').value = found.telefono || '';
+                        if (document.getElementById('f-direccion') && !document.getElementById('f-direccion').value) document.getElementById('f-direccion').value = found.direccion || '';
+                    }
+                } catch (e) {
+                    console.error("Error al buscar cliente por documento:", e);
+                }
             }
         });
     }
@@ -636,6 +1023,9 @@ async function searchCustomers() {
 }
 
 function loadClient(c) {
+    if (document.getElementById('f-id-cliente')) {
+        document.getElementById('f-id-cliente').value = c.id_cliente || '';
+    }
     document.getElementById('f-documento').value = c.documento || '';
     document.getElementById('f-nombre').value = c.nombre || '';
     document.getElementById('f-telefono').value = c.telefono || '';
@@ -859,14 +1249,37 @@ async function eliminarRepuestoOrden(id) {
 
 function loadOrder(o) {
     document.getElementById('f-id-orden').value = o.id_orden;
+    if (document.getElementById('f-id-cliente')) {
+        document.getElementById('f-id-cliente').value = o.id_cliente || '';
+    }
     document.getElementById('f-documento').value = o.cliente_doc || '';
     document.getElementById('f-nombre').value = o.cliente_nombre || '';
-    document.getElementById('f-telefono').value = o.telefono || '';
-    document.getElementById('f-direccion').value = o.direccion || '';
+    document.getElementById('f-telefono').value = o.telefono || o.cliente_tel || '';
+    document.getElementById('f-direccion').value = o.direccion || o.cliente_dir || '';
     document.getElementById('f-marca').value = o.marca || '';
     document.getElementById('f-modelo').value = o.modelo || '';
     document.getElementById('f-serial').value = o.serial || '';
     document.getElementById('f-clave').value = o.clave || '';
+
+    // Cargar Tipo de Bloqueo y Patrón
+    const tipoBloqueo = o.tipo_bloqueo || (o.patron ? 'patron' : (o.clave ? 'clave' : 'clave'));
+    const selectBloqueo = document.getElementById('f-tipo-bloqueo');
+    if (selectBloqueo) {
+        selectBloqueo.value = tipoBloqueo;
+        cambiarTipoBloqueo(tipoBloqueo);
+    }
+    if (document.getElementById('f-patron')) {
+        document.getElementById('f-patron').value = o.patron || '';
+    }
+
+    if (tipoBloqueo === 'patron' && o.patron) {
+        setTimeout(() => {
+            PatternLock.setPattern(o.patron, true); // Reproducir animación secuencial numerada
+        }, 200);
+    } else {
+        limpiarPatron(false);
+    }
+
     document.getElementById('f-accesorios').value = o.accesorios || '';
     document.getElementById('f-falla').value = o.falla || '';
     document.getElementById('f-observaciones').value = o.observaciones || '';

@@ -149,6 +149,8 @@ switch ($action) {
         $hasta = $_GET['hasta'] ?? null;
         
         $sql = "SELECT o.*, c.nombre as cliente_nombre, c.documento as cliente_doc,
+                c.telefono, c.direccion,
+                c.telefono as cliente_tel, c.direccion as cliente_dir,
                 u1.nombre as creador_nombre, u2.nombre as actualizador_nombre
                 FROM ordenes o 
                 JOIN clientes c ON o.id_cliente = c.id_cliente 
@@ -194,8 +196,11 @@ switch ($action) {
         try {
             checkAuth(['admin', 'empleado']);
             
-            $documento = $data['documento'] ?? '';
-            $clientId = $data['id_cliente'] ?? null;
+            $documento = trim($data['documento'] ?? '');
+            $clientId = !empty($data['id_cliente']) ? (int)$data['id_cliente'] : null;
+            $nombre = trim($data['nombre'] ?? '');
+            $telefono = trim($data['telefono'] ?? '');
+            $direccion = trim($data['direccion'] ?? '');
 
             if (!$clientId && !empty($documento)) {
                 $stmt = $db->prepare("SELECT id_cliente FROM clientes WHERE documento = ?");
@@ -203,16 +208,16 @@ switch ($action) {
                 $existing = $stmt->fetch();
                 if ($existing) {
                     $clientId = $existing['id_cliente'];
-                    $stmt = $db->prepare("UPDATE clientes SET nombre=?, telefono=?, direccion=? WHERE id_cliente=?");
-                    $stmt->execute([$data['nombre'], $data['telefono'], $data['direccion'], $clientId]);
-                } else {
-                    $stmt = $db->prepare("INSERT INTO clientes (nombre, documento, telefono, direccion) VALUES (?, ?, ?, ?)");
-                    $stmt->execute([$data['nombre'], $documento, $data['telefono'], $data['direccion']]);
-                    $clientId = $db->lastInsertId();
                 }
-            } else if ($clientId) {
+            }
+
+            if ($clientId) {
                 $stmt = $db->prepare("UPDATE clientes SET nombre=?, documento=?, telefono=?, direccion=? WHERE id_cliente=?");
-                $stmt->execute([$data['nombre'], $documento, $data['telefono'], $data['direccion'], $clientId]);
+                $stmt->execute([$nombre, $documento, $telefono, $direccion, $clientId]);
+            } else {
+                $stmt = $db->prepare("INSERT INTO clientes (nombre, documento, telefono, direccion) VALUES (?, ?, ?, ?)");
+                $stmt->execute([$nombre, $documento, $telefono, $direccion]);
+                $clientId = $db->lastInsertId();
             }
 
             $orderId = $data['id_orden'] ?? null;
@@ -223,21 +228,24 @@ switch ($action) {
                 $reparado = formatDatePicker($data['reparado'] ?? null);
                 $entregado = formatDatePicker($data['entregado'] ?? null);
 
-                $stmt = $db->prepare("UPDATE ordenes SET tipo_equipo=?, marca=?, modelo=?, serial=?, clave=?, accesorios=?, falla=?, observaciones=?, reparacion=?, abono=?, presupuesto=?, estado=?, reparado=?, entregado=?, id_usuario_actualizador=? WHERE id_orden=?");
+                $stmt = $db->prepare("UPDATE ordenes SET id_cliente=?, tipo_equipo=?, marca=?, modelo=?, serial=?, clave=?, tipo_bloqueo=?, patron=?, accesorios=?, falla=?, observaciones=?, reparacion=?, abono=?, presupuesto=?, estado=?, reparado=?, entregado=?, id_usuario_actualizador=? WHERE id_orden=?");
                 $stmt->execute([
+                    $clientId,
                     $data['tipo_equipo'] ?? '', $data['marca'] ?? '', $data['modelo'] ?? '', $data['serial'] ?? '', $data['clave'] ?? '', 
+                    $data['tipo_bloqueo'] ?? 'clave', $data['patron'] ?? null,
                     $data['accesorios'] ?? '', $data['falla'] ?? '', $data['observaciones'] ?? '', $data['reparacion'] ?? '', 
                     $data['abono'] ?? 0, $data['presupuesto'] ?? 0, $data['estado'] ?? 'POR REVISAR', $reparado, $entregado, $userId, $orderId
                 ]);
-                echo json_encode(['success' => true, 'id_orden' => $orderId]);
+                echo json_encode(['success' => true, 'id_orden' => $orderId, 'id_cliente' => $clientId]);
             } else {
                 // New order
-                $stmt = $db->prepare("INSERT INTO ordenes (fecha, id_cliente, tipo_equipo, marca, modelo, serial, clave, accesorios, falla, observaciones, presupuesto, estado, id_usuario_creador) VALUES (CURDATE(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'POR REVISAR', ?)");
+                $stmt = $db->prepare("INSERT INTO ordenes (fecha, id_cliente, tipo_equipo, marca, modelo, serial, clave, tipo_bloqueo, patron, accesorios, falla, observaciones, presupuesto, estado, id_usuario_creador) VALUES (CURDATE(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'POR REVISAR', ?)");
                 $stmt->execute([
                     $clientId, $data['tipo_equipo'], $data['marca'], $data['modelo'], $data['serial'], 
-                    $data['clave'], $data['accesorios'], $data['falla'], $data['observaciones'], $data['presupuesto'], $userId
+                    $data['clave'] ?? '', $data['tipo_bloqueo'] ?? 'clave', $data['patron'] ?? null,
+                    $data['accesorios'], $data['falla'], $data['observaciones'], $data['presupuesto'], $userId
                 ]);
-                echo json_encode(['success' => true, 'id_orden' => $db->lastInsertId()]);
+                echo json_encode(['success' => true, 'id_orden' => $db->lastInsertId(), 'id_cliente' => $clientId]);
             }
         } catch (Exception $e) {
             http_response_code(500);
@@ -315,11 +323,11 @@ switch ($action) {
             checkAuth();
             $id = $_GET['id'] ?? null;
             if ($id) {
-                $stmt = $db->prepare("SELECT url FROM orden_archivos WHERE id = ?");
+                $stmt = $db->prepare("SELECT archivo_ruta FROM orden_archivos WHERE id = ?");
                 $stmt->execute([$id]);
                 $archivo = $stmt->fetch();
                 if ($archivo) {
-                    $fullPath = __DIR__ . '/' . $archivo['url'];
+                    $fullPath = __DIR__ . '/' . $archivo['archivo_ruta'];
                     if (file_exists($fullPath)) @unlink($fullPath);
                     
                     $stmt = $db->prepare("DELETE FROM orden_archivos WHERE id = ?");

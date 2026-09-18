@@ -123,10 +123,87 @@ $isSetup = ($userCount == 0);
         <div class="win-body">
             
             <div class="top-section">
-                <!-- LEfT: Logo/User area -->
+                <!-- LEfT: Logo/User area & Security Pattern Manager -->
                 <div class="profile-logo">
                     <div class="logo-box">
                         <img src="imagenes/logo.png" alt="Servicio Técnico Logo" id="user-avatar-img" style="width: 100%; height: 100%; object-fit: cover;">
+                    </div>
+
+                    <!-- Panel de Seguridad y Desbloqueo -->
+                    <div class="win-panel security-panel" id="panel-seguridad">
+                        <div class="panel-title" style="font-size: 11px; padding: 2px 4px; display: flex; align-items: center; justify-content: center; gap: 5px;">
+                            <i class="fas fa-shield-alt"></i> SEGURIDAD / BLOQUEO
+                        </div>
+                        <div class="panel-content" style="padding: 6px;">
+                            <label class="lbl-top" style="font-size: 10px; font-weight: bold; margin-bottom: 2px; display: block;">TIPO DE BLOQUEO:</label>
+                            <select id="f-tipo-bloqueo" class="security-select" onchange="cambiarTipoBloqueo(this.value)">
+                                <option value="clave">🔑 Clave / PIN</option>
+                                <option value="patron">📱 Patrón de Puntos</option>
+                                <option value="huella">👆 Huella Dactilar</option>
+                                <option value="facial">👤 Reconocimiento Facial</option>
+                                <option value="ninguno">🔓 Sin Bloqueo</option>
+                            </select>
+
+                            <!-- Hidden input para secuencia del patrón -->
+                            <input type="hidden" id="f-patron" value="">
+
+                            <!-- Bloque 1: Clave (Texto / PIN) -->
+                            <div id="sec-block-clave" class="sec-block">
+                                <label class="lbl-top mt-1" style="font-size: 10px;">CLAVE / CONTRASEÑA:</label>
+                                <div style="display: flex; gap: 3px; align-items: center;">
+                                    <input type="text" id="f-clave" style="flex: 1; font-weight: bold; font-family: monospace; font-size: 11px; padding: 3px;" placeholder="Ej: 1234 / abcd">
+                                    <button type="button" class="w-btn" onclick="toggleVerClave()" title="Ocultar/Ver clave" style="padding: 2px 5px; height: 24px;"><i class="fas fa-eye" id="btn-ver-clave-icon"></i></button>
+                                </div>
+                            </div>
+
+                            <!-- Bloque 2: Patrón de Puntos Android -->
+                            <div id="sec-block-patron" class="sec-block" style="display: none;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 5px; margin-bottom: 3px;">
+                                    <span style="font-size: 10px; color: #475569; font-weight: bold;" id="patron-status">Dibuja el patrón:</span>
+                                    <span id="patron-count" style="font-size: 10px; font-weight: bold; color: #0284c7;"></span>
+                                </div>
+                                
+                                <div class="pattern-lock-container" id="pattern-lock-container" title="Desliza con el mouse para dibujar el patrón">
+                                    <canvas id="pattern-canvas" width="180" height="180"></canvas>
+                                </div>
+
+                                <div class="pattern-actions mt-1" style="display: flex; gap: 4px; justify-content: center;">
+                                    <button type="button" class="w-btn" id="btn-limpiar-patron" onclick="limpiarPatron()" title="Borrar y volver a dibujar" style="flex: 1; font-size: 10px; padding: 3px;">
+                                        <i class="fas fa-eraser"></i> Limpiar
+                                    </button>
+                                    <button type="button" class="w-btn" id="btn-animar-patron" onclick="reproducirAnimacionPatron()" title="Reproducir animación con orden numérico" style="flex: 1; font-size: 10px; padding: 3px; background: #e0f2fe; border-color: #7dd3fc;">
+                                        <i class="fas fa-play"></i> Reproducir
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Bloque 3: Huella Dactilar -->
+                            <div id="sec-block-huella" class="sec-block" style="display: none;">
+                                <div class="biometric-box">
+                                    <i class="fas fa-fingerprint biometric-icon" style="color: #0284c7;"></i>
+                                    <div class="biometric-title">HUELLA DACTILAR</div>
+                                    <div class="biometric-desc">Dispositivo protegido por sensor biométrico dactilar.</div>
+                                </div>
+                            </div>
+
+                            <!-- Bloque 4: Reconocimiento Facial -->
+                            <div id="sec-block-facial" class="sec-block" style="display: none;">
+                                <div class="biometric-box">
+                                    <i class="fas fa-user-check biometric-icon" style="color: #7c3aed;"></i>
+                                    <div class="biometric-title">RECONOCIMIENTO FACIAL</div>
+                                    <div class="biometric-desc">Dispositivo protegido por escaneo facial.</div>
+                                </div>
+                            </div>
+
+                            <!-- Bloque 5: Sin Bloqueo -->
+                            <div id="sec-block-ninguno" class="sec-block" style="display: none;">
+                                <div class="biometric-box">
+                                    <i class="fas fa-unlock biometric-icon" style="color: #10b981;"></i>
+                                    <div class="biometric-title">SIN BLOQUEO</div>
+                                    <div class="biometric-desc">Equipo libre sin contraseña, PIN ni patrón.</div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -140,6 +217,7 @@ $isSetup = ($userCount == 0);
                             <div class="f-row">
                                 <label class="lbl-right" style="width: 130px;">ORDEN DE SERVICIO:</label>
                                 <input type="text" id="f-id-orden" style="width: 60px;" readonly>
+                                <input type="hidden" id="f-id-cliente" value="">
                                 <i class="fas fa-barcode barcode-icon"></i>
                                 <label class="lbl-right">FECHA:</label>
                                 <div class="d-input-group" style="width: 100px;">
@@ -236,10 +314,7 @@ $isSetup = ($userCount == 0);
 
                     <div class="accesorios-box mt-1">
                         <label class="lbl-top">ACCESORIOS:</label>
-                        <input type="text" id="f-accesorios" style="width: 100%;">
-                        
-                        <label class="lbl-top mt-1">CLAVE O PATRON:</label>
-                        <input type="text" id="f-clave" style="width: 100%;">
+                        <input type="text" id="f-accesorios" style="width: 100%;" placeholder="Cargador, funda, cable...">
                     </div>
                     
                     <div class="repuestos-box mt-1" style="background: #fff; border: 1px solid #ccc; padding: 5px; flex: 1; display: flex; flex-direction: column;">

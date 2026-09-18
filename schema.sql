@@ -49,6 +49,8 @@ CREATE TABLE IF NOT EXISTS ordenes (
     modelo VARCHAR(100),
     serial VARCHAR(100),
     clave VARCHAR(100),
+    tipo_bloqueo VARCHAR(20) DEFAULT 'clave',
+    patron VARCHAR(100),
     accesorios TEXT,
     falla TEXT,
     observaciones TEXT,

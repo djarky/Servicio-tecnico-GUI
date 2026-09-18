@@ -5,11 +5,14 @@ echo "------------------------------------------"
 echo "  ST-PRO: Iniciando Sistema de Servicio"
 echo "------------------------------------------"
 
-# Iniciar servidor PHP en segundo plano
-php -S localhost:8080 > /dev/null 2>&1 &
+# Iniciar servidor PHP en segundo plano (escuchando en todas las interfaces para red local)
+php -S 0.0.0.0:8080 > /dev/null 2>&1 &
 PHP_PID=$!
 
-echo "Servidor iniciado en http://localhost:8080 (Proceso: $PHP_PID)"
+LOCAL_IP=$(hostname -I | awk '{print $1}')
+echo "Servidor iniciado en el puerto 8080 (Proceso: $PHP_PID)"
+echo "Accesible localmente en: http://localhost:8080"
+echo "Accesible en tu red local: http://$LOCAL_IP:8080"
 echo "Presiona Ctrl+C para detener el servidor."
 
 # Esperar un segundo para asegurar el arranque
